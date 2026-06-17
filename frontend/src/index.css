@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply min-h-screen font-sans text-base font-medium text-ink antialiased;
+    background-color: #d8e2f3;
+    background-image:
+      radial-gradient(ellipse 90% 55% at 0% 0%, rgba(79, 70, 229, 0.22), transparent 55%),
+      radial-gradient(ellipse 70% 45% at 100% 5%, rgba(14, 165, 233, 0.2), transparent 50%),
+      radial-gradient(ellipse 55% 40% at 50% 100%, rgba(124, 58, 237, 0.14), transparent 55%),
+      linear-gradient(165deg, #c9d6ec 0%, #dce6f5 38%, #e4ebf8 68%, #d6e0f2 100%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3 {
+    @apply font-display font-bold tracking-tight text-ink;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply relative min-h-screen overflow-x-hidden;
+  }
+
+  .orb {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+  }
+
+  .modern-panel {
+    @apply rounded-2xl border border-white/60 bg-white/95 shadow-soft backdrop-blur-xl;
+  }
+
+  .glass-panel {
+    @apply modern-panel;
+  }
+
+  .table-scroll {
+    @apply max-h-[min(70vh,calc(100vh-14rem))] overflow-y-auto overflow-x-hidden;
+  }
+
+  .table-sticky-th {
+    @apply sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50/95 px-2 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-ink-muted backdrop-blur-md sm:px-3 sm:py-2.5 sm:text-[11px];
+  }
+
+  .table-cell {
+    @apply whitespace-nowrap px-2 py-2 text-xs font-medium text-ink sm:px-3 sm:py-2.5 sm:text-sm;
+  }
+
+  .table-cell-wrap {
+    @apply max-w-[9rem] truncate px-2 py-2 text-xs font-semibold text-ink sm:max-w-[14rem] sm:px-3 sm:py-2.5 sm:text-sm md:max-w-xs md:whitespace-normal;
+  }
+
+  .kpi-card {
+    @apply relative overflow-hidden rounded-2xl border bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-card;
+  }
+
+  .detail-grid {
+    @apply grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 sm:p-4 lg:grid-cols-4;
+  }
+
+  .detail-tile {
+    @apply rounded-xl border border-slate-200/80 bg-white px-3 py-2.5;
+  }
+
+  .detail-tile-label {
+    @apply text-[10px] font-bold uppercase tracking-wide text-ink-faint sm:text-[11px];
+  }
+
+  .detail-tile-value {
+    @apply mt-0.5 text-sm font-bold tabular-nums text-ink sm:text-base;
+  }
+
+  .brand-title {
+    @apply font-display text-4xl font-bold leading-none tracking-tight sm:text-5xl lg:text-6xl;
+    background: linear-gradient(120deg, #312e81 0%, #2563eb 45%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
