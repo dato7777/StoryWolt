@@ -44,8 +44,12 @@ def verify_credentials(username: str, password: str) -> bool:
     """Constant-time compare against env-configured admin credentials."""
     if not credentials_configured():
         return False
-    user_ok = hmac.compare_digest(username.strip(), _admin_username())
-    pass_ok = hmac.compare_digest(password, _admin_password())
+    expected_user = _admin_username()
+    expected_pass = _admin_password()
+    if len(username.strip()) != len(expected_user) or len(password) != len(expected_pass):
+        return False
+    user_ok = hmac.compare_digest(username.strip(), expected_user)
+    pass_ok = hmac.compare_digest(password, expected_pass)
     return user_ok and pass_ok
 
 

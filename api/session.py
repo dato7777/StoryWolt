@@ -10,6 +10,8 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler
 
+import _bootstrap  # noqa: F401
+
 from auth_utils import extract_bearer_token, verify_session_token
 
 CORS_HEADERS = (

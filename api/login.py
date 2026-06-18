@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler
 
+import _bootstrap  # noqa: F401 — must run before auth_utils import on Vercel
+
 from auth_utils import (
     create_session_token,
     credentials_configured,

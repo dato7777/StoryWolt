@@ -20,6 +20,8 @@ import os
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
+import _bootstrap  # noqa: F401
+
 from auth_utils import is_request_authenticated
 from commission_engine import run_calculation
 

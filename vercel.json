@@ -3,11 +3,25 @@
   "installCommand": "cd frontend && npm install",
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/login.py": {
+      "includeFiles": "api/**"
+    },
+    "api/session.py": {
+      "includeFiles": "api/**"
+    },
+    "api/calculate.py": {
+      "includeFiles": "{api/**,data/**}"
+    },
+    "api/health.py": {
+      "includeFiles": "api/**"
+    }
+  },
   "rewrites": [
-    { "source": "/api/login", "destination": "/api/login.py" },
-    { "source": "/api/session", "destination": "/api/session.py" },
-    { "source": "/api/calculate", "destination": "/api/calculate.py" },
-    { "source": "/api/health", "destination": "/api/health.py" }
+    { "source": "/api/login", "destination": "/api/login" },
+    { "source": "/api/session", "destination": "/api/session" },
+    { "source": "/api/calculate", "destination": "/api/calculate" },
+    { "source": "/api/health", "destination": "/api/health" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
-  
 }
