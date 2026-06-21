@@ -32,6 +32,10 @@ export default {
       },
       animation: {
         "fade-up": "fadeUp 0.55s ease-out forwards",
+        "hero-enter-left": "heroEnterLeft 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        "hero-enter-right": "heroEnterRight 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        "hero-zoom-in": "heroZoomIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        "tab-spotlight": "tabSpotlight 1.4s ease-in-out infinite",
         "orb-float": "orbFloat 18s ease-in-out infinite",
         "shimmer": "shimmer 2.5s ease-in-out infinite",
       },
@@ -39,6 +43,30 @@ export default {
         fadeUp: {
           "0%": { opacity: "0", transform: "translateY(16px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        heroEnterLeft: {
+          "0%": { opacity: "0", transform: "translateX(-48px) scale(0.92)" },
+          "100%": { opacity: "1", transform: "translateX(0) scale(1)" },
+        },
+        heroEnterRight: {
+          "0%": { opacity: "0", transform: "translateX(48px) scale(0.92)" },
+          "100%": { opacity: "1", transform: "translateX(0) scale(1)" },
+        },
+        heroZoomIn: {
+          "0%": { opacity: "0", transform: "scale(0.88)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        tabSpotlight: {
+          "0%, 100%": {
+            boxShadow:
+              "0 0 0 0 rgba(239, 68, 68, 0.45), 0 0 0 1px rgba(239, 68, 68, 0.35), 0 12px 32px rgba(239, 68, 68, 0.25)",
+            transform: "translateY(0) scale(1)",
+          },
+          "50%": {
+            boxShadow:
+              "0 0 0 6px rgba(239, 68, 68, 0.2), 0 0 0 2px rgba(239, 68, 68, 0.5), 0 16px 40px rgba(239, 68, 68, 0.35)",
+            transform: "translateY(-2px) scale(1.02)",
+          },
         },
         orbFloat: {
           "0%, 100%": { transform: "translate(0, 0) scale(1)" },

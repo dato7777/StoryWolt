@@ -12,15 +12,27 @@ function easeOutCubic(t: number): number {
 export function useCountUp(
   target: number | undefined | null,
   durationMs = 1100,
+  options?: { enabled?: boolean; onComplete?: () => void },
 ): number {
+  const enabled = options?.enabled ?? true;
+  const onCompleteRef = useRef(options?.onComplete);
+  onCompleteRef.current = options?.onComplete;
+
   const [value, setValue] = useState(0);
   const rafRef = useRef<number>();
+  const completedRef = useRef(false);
 
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    completedRef.current = false;
 
     if (target == null || Number.isNaN(target)) {
       setValue(0);
+      return;
+    }
+
+    if (!enabled) {
+      setValue(target);
       return;
     }
 
@@ -34,6 +46,10 @@ export function useCountUp(
         rafRef.current = requestAnimationFrame(tick);
       } else {
         setValue(target);
+        if (!completedRef.current) {
+          completedRef.current = true;
+          onCompleteRef.current?.();
+        }
       }
     };
 
@@ -41,7 +57,7 @@ export function useCountUp(
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [target, durationMs]);
+  }, [target, durationMs, enabled]);
 
   return value;
 }

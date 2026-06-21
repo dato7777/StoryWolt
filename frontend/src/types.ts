@@ -40,6 +40,10 @@ export interface CalculationSummary {
   per_item_expenses_excluded_incl_vat?: number | null;
   /** Remaining excluded after allocated ad cost is applied (toggle on) */
   per_item_expenses_excluded_after_ads_incl_vat?: number | null;
+  /** Display label e.g. "1–15 Apr 2026" */
+  report_period_label?: string | null;
+  report_period_start?: string | null;
+  report_period_end?: string | null;
 }
 
 export interface CalculatedRow {

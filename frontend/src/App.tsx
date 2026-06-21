@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { logoutAdmin, verifySession } from "./api/auth";
 import { calculateNetIncome } from "./api/client";
 import { Dashboard } from "./components/Dashboard";
 import { LoginPage } from "./components/LoginPage";
 import { MissingCommissionPanel } from "./components/MissingCommissionPanel";
 import { LossItemsTable, countLossItems } from "./components/LossItemsTable";
+import { LossOutcomeBanner } from "./components/LossOutcomeBanner";
 import { OrdersTable } from "./components/OrdersTable";
 import { ResultsTable } from "./components/ResultsTable";
 import { UploadPanel } from "./components/UploadPanel";
@@ -28,6 +29,23 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<TabId>("orders");
   const [includeAllocatedAdCost, setIncludeAllocatedAdCost] = useState(false);
+  const [showLossBanner, setShowLossBanner] = useState(false);
+  const [highlightLossesTab, setHighlightLossesTab] = useState(false);
+  const tabsBarRef = useRef<HTMLDivElement>(null);
+  const lossesTabRef = useRef<HTMLButtonElement>(null);
+  const lossBannerRef = useRef<HTMLDivElement>(null);
+  const resultGenerationRef = useRef(0);
+  const lossSequenceTimersRef = useRef<number[]>([]);
+
+  function clearLossSequenceTimers() {
+    lossSequenceTimersRef.current.forEach((id) => window.clearTimeout(id));
+    lossSequenceTimersRef.current = [];
+  }
+
+  function scheduleLossSequenceTimer(fn: () => void, ms: number) {
+    const id = window.setTimeout(fn, ms);
+    lossSequenceTimersRef.current.push(id);
+  }
 
   useEffect(() => {
     if (authState !== "checking") return;
@@ -39,6 +57,53 @@ export default function App() {
       cancelled = true;
     };
   }, [authState]);
+
+  const lossItemCount = result
+    ? countLossItems(result.orders, includeAllocatedAdCost)
+    : 0;
+
+  const handleHeroCascadeComplete = useCallback(() => {
+    if (!result) return;
+
+    const generation = resultGenerationRef.current;
+    const lossesOnLoad = countLossItems(result.orders, false);
+
+    clearLossSequenceTimers();
+    setShowLossBanner(true);
+
+    scheduleLossSequenceTimer(() => {
+      if (resultGenerationRef.current !== generation) return;
+      lossBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+
+    if (lossesOnLoad <= 0) return;
+
+    scheduleLossSequenceTimer(() => {
+      if (resultGenerationRef.current !== generation) return;
+      setHighlightLossesTab(true);
+      tabsBarRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      lossesTabRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }, 1600);
+
+    scheduleLossSequenceTimer(() => {
+      if (resultGenerationRef.current !== generation) return;
+      setHighlightLossesTab(false);
+    }, 20000);
+  }, [result]);
+
+  useEffect(() => {
+    return () => clearLossSequenceTimers();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "losses") {
+      setHighlightLossesTab(false);
+    }
+  }, [activeTab]);
 
   function handleLogout() {
     logoutAdmin();
@@ -65,8 +130,12 @@ export default function App() {
       }
 
       const response = await calculateNetIncome(payload);
+      resultGenerationRef.current += 1;
+      clearLossSequenceTimers();
       setResult(response);
       setIncludeAllocatedAdCost(false);
+      setShowLossBanner(false);
+      setHighlightLossesTab(false);
       setActiveTab(response.orders.length > 0 ? "orders" : "products");
     } catch (err) {
       setResult(null);
@@ -95,9 +164,6 @@ export default function App() {
   const adminName = getAuthUsername() ?? "admin";
   const hasWoltSummary = result?.summary.wolt_summary_gross_goods != null;
   const canAllocateAds = (result?.summary.wolt_summary_ad_campaigns_incl_vat ?? 0) > 0;
-  const lossItemCount = result
-    ? countLossItems(result.orders, includeAllocatedAdCost)
-    : 0;
 
   return (
     <div className="page-shell">
@@ -164,6 +230,7 @@ export default function App() {
             <Dashboard
               summary={result.summary}
               includeAllocatedAdCost={includeAllocatedAdCost}
+              onHeroCascadeComplete={handleHeroCascadeComplete}
             />
 
             {(result.summary.rejected_order_count ?? 0) > 0 && (
@@ -190,7 +257,27 @@ export default function App() {
               <MissingCommissionPanel products={result.missing_commission_products!} />
             )}
 
-            <div className="modern-panel flex gap-2 p-2">
+            {showLossBanner && (
+              <div ref={lossBannerRef} className="scroll-mt-28">
+                <LossOutcomeBanner
+                  lossCount={countLossItems(result.orders, includeAllocatedAdCost)}
+                />
+              </div>
+            )}
+
+            <div ref={tabsBarRef} id="main-tabs" className="relative scroll-mt-28">
+              {highlightLossesTab && (
+                <div
+                  className="pointer-events-none absolute -top-3 right-[4%] z-20 flex flex-col items-center sm:right-[6%]"
+                  aria-hidden
+                >
+                  <span className="rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg shadow-red-500/40">
+                    Tap here
+                  </span>
+                  <span className="mt-0.5 text-2xl leading-none text-red-600">↓</span>
+                </div>
+              )}
+              <div className="modern-panel flex gap-2 p-2">
               {(
                 [
                   {
@@ -233,10 +320,15 @@ export default function App() {
               ).map((tab) => (
                 <button
                   key={tab.id}
+                  ref={tab.id === "losses" ? lossesTabRef : undefined}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex flex-1 items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-base font-bold transition-all duration-300 ease-out ${
+                  className={`relative flex flex-1 items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-base font-bold transition-all duration-300 ease-out ${
                     activeTab === tab.id ? tab.active : tab.idle
+                  } ${
+                    tab.id === "losses" && highlightLossesTab
+                      ? "animate-tab-spotlight z-10 ring-2 ring-red-500 ring-offset-2"
+                      : ""
                   }`}
                 >
                   {tab.label}
@@ -249,6 +341,7 @@ export default function App() {
                   </span>
                 </button>
               ))}
+              </div>
             </div>
 
             {hasWoltSummary && (

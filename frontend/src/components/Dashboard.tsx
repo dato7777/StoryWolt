@@ -2,12 +2,15 @@
  * Analytical financial dashboard — structured Wolt period overview.
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CountUpCurrency } from "./CountUpCurrency";
 import type { CalculationSummary } from "../types";
+import { formatReportPeriod } from "../utils/formatReportPeriod";
 
 interface DashboardProps {
   summary: CalculationSummary;
   includeAllocatedAdCost?: boolean;
+  onHeroCascadeComplete?: () => void;
 }
 
 function formatIls(n: number | null | undefined): string {
@@ -88,40 +91,159 @@ function MetricTile({ label, hint, value, tone = "neutral", delay = 0 }: MetricP
   );
 }
 
-interface HeroProps {
+interface HeroStep {
+  id: string;
+  stepNumber: number;
   label: string;
-  formula: string;
+  hint: string;
   value: number | null | undefined;
-  variant: "payout" | "profit";
-  delay?: number;
+  enterAnimation: "enter-left" | "enter-right" | "zoom-in";
+  cardClass: string;
+  indexClass: string;
+  valueClass: string;
+  glowClass: string;
 }
 
-function HeroMetric({ label, formula, value, variant, delay = 0 }: HeroProps) {
-  const isProfit = variant === "profit";
+const COUNT_DURATION_MS = 1500;
+const PAUSE_AFTER_COUNT_MS = 220;
+
+const ENTER_ANIM_CLASSES: Record<HeroStep["enterAnimation"], string> = {
+  "enter-left": "animate-hero-enter-left",
+  "enter-right": "animate-hero-enter-right",
+  "zoom-in": "animate-hero-zoom-in",
+};
+
+function HeroCascadeCard({
+  step,
+  isCounting,
+  settled,
+  onCountComplete,
+}: {
+  step: HeroStep;
+  isCounting: boolean;
+  settled: boolean;
+  onCountComplete: () => void;
+}) {
+  useEffect(() => {
+    if (!isCounting) return;
+    if (step.value == null || Number.isNaN(step.value)) {
+      const timer = window.setTimeout(onCountComplete, 480);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [isCounting, step.value, onCountComplete]);
+
   return (
     <article
-      style={{ animationDelay: `${delay}ms` }}
-      className={`analytics-hero animate-fade-up opacity-0 ${
-        isProfit
-          ? "border-emerald-200/90 bg-gradient-to-br from-emerald-50 via-white to-teal-50/80 shadow-glow-emerald"
-          : "border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-indigo-50/80 shadow-glow"
+      className={`hero-cascade-card ${
+        settled
+          ? `opacity-100 ${step.cardClass}`
+          : `opacity-0 ${ENTER_ANIM_CLASSES[step.enterAnimation]} ${step.cardClass}`
       }`}
     >
-      <div
-        className={`pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full blur-3xl ${
-          isProfit ? "bg-emerald-400/25" : "bg-sky-400/25"
-        }`}
-      />
-      <p className="analytics-label">{label}</p>
-      <p
-        className={`mt-4 font-mono text-4xl font-semibold tabular-nums tracking-tight sm:text-5xl lg:text-[3.25rem] ${
-          isProfit ? "text-emerald-700" : "text-sky-800"
-        }`}
-      >
-        <CountUpCurrency value={value} durationMs={1400} />
+      <div className={`pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full blur-3xl ${step.glowClass}`} />
+      <div className="flex items-start justify-between gap-4">
+        <span className={`hero-cascade-index ${step.indexClass}`}>
+          {String(step.stepNumber).padStart(2, "0")}
+        </span>
+      </div>
+      <h3 className="mt-2 font-display text-lg font-semibold leading-snug tracking-tight text-ink sm:text-xl">
+        {step.label}
+      </h3>
+      <p className="mt-1 text-xs font-medium text-ink-faint sm:text-sm">{step.hint}</p>
+      <p className={`mt-5 font-mono text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl lg:text-[2.75rem] ${step.valueClass}`}>
+        {step.value != null && !Number.isNaN(step.value) ? (
+          <CountUpCurrency
+            value={step.value}
+            durationMs={COUNT_DURATION_MS}
+            animate={isCounting}
+            onComplete={isCounting ? onCountComplete : undefined}
+          />
+        ) : (
+          <span className="text-xl sm:text-2xl">Upload standardSummary.csv</span>
+        )}
       </p>
-      <p className="mt-3 text-sm font-medium text-ink-muted">{formula}</p>
     </article>
+  );
+}
+
+function MainHeroCascade({
+  steps,
+  onComplete,
+}: {
+  steps: HeroStep[];
+  onComplete?: () => void;
+}) {
+  const [revealedIndex, setRevealedIndex] = useState(-1);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const cascadeKey = useMemo(
+    () => steps.map((step) => `${step.id}:${step.value ?? "null"}`).join("|"),
+    [steps],
+  );
+
+  useEffect(() => {
+    setRevealedIndex(-1);
+    cardRefs.current = [];
+    const timer = window.setTimeout(() => setRevealedIndex(0), 120);
+    return () => window.clearTimeout(timer);
+  }, [cascadeKey]);
+
+  useEffect(() => {
+    if (revealedIndex < 0) return;
+    const timer = window.setTimeout(() => {
+      cardRefs.current[revealedIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: revealedIndex === 0 ? "start" : "center",
+      });
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [revealedIndex, cascadeKey]);
+
+  const handleCountComplete = useCallback(
+    (index: number) => {
+      window.setTimeout(() => {
+        setRevealedIndex((current) => {
+          if (current !== index) return current;
+          return index < steps.length - 1 ? index + 1 : current;
+        });
+        if (index === steps.length - 1) {
+          onCompleteRef.current?.();
+        }
+      }, PAUSE_AFTER_COUNT_MS);
+    },
+    [steps.length],
+  );
+
+  return (
+    <div className="relative mx-auto max-w-3xl py-2 sm:py-4">
+      {steps.map((step, index) => {
+        if (index > revealedIndex) return null;
+        return (
+          <div
+            key={step.id}
+            ref={(element) => {
+              cardRefs.current[index] = element;
+            }}
+            className="relative scroll-mt-28"
+            style={{
+              marginLeft: `calc(${index} * clamp(1rem, 5vw, 2.75rem))`,
+              marginTop:
+                index === 0 ? 0 : `calc(${index} * clamp(0.6rem, 2.5vw, 1.35rem))`,
+              zIndex: steps.length - index,
+            }}
+          >
+            <HeroCascadeCard
+              step={step}
+              isCounting={index === revealedIndex}
+              settled={index < revealedIndex}
+              onCountComplete={() => handleCountComplete(index)}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -174,8 +296,13 @@ function FlowStep({
   );
 }
 
-export function Dashboard({ summary, includeAllocatedAdCost = false }: DashboardProps) {
+export function Dashboard({
+  summary,
+  includeAllocatedAdCost = false,
+  onHeroCascadeComplete,
+}: DashboardProps) {
   const hasWoltSummary = summary.wolt_summary_gross_goods != null;
+  const reportPeriod = formatReportPeriod(summary);
   const selfCost = summary.total_product_self_cost ?? 0;
   const ordersSold = summary.total_sold_value ?? summary.total_gross;
 
@@ -241,6 +368,67 @@ export function Dashboard({ summary, includeAllocatedAdCost = false }: Dashboard
       ].filter(Boolean) as { label: string; detail: string; value: number }[]
     : [];
 
+  const heroSteps: HeroStep[] = [
+    {
+      id: "goods-sold",
+      stepNumber: 1,
+      label: "Goods sold (incl. VAT)",
+      hint: hasWoltSummary
+        ? "Total goods sold · Wolt standardSummary invoice"
+        : "Sum of delivered orders in this period",
+      value: soldTotal,
+      enterAnimation: "enter-left",
+      cardClass:
+        "border-slate-200/90 bg-gradient-to-br from-slate-50 via-white to-slate-100/80",
+      indexClass: "text-slate-500",
+      valueClass: "text-ink",
+      glowClass: "bg-slate-400/20",
+    },
+    {
+      id: "wolt-expenses",
+      stepNumber: 2,
+      label: "Wolt fees + Expenses (incl. VAT)",
+      hint: hasWoltSummary
+        ? "WOLT INVOICE + self-billing adjustments"
+        : "Estimated distribution commission from orders × 1.18",
+      value: woltExpenses,
+      enterAnimation: "enter-right",
+      cardClass:
+        "border-orange-200/90 bg-gradient-to-br from-orange-50 via-white to-amber-50/80",
+      indexClass: "text-orange-600",
+      valueClass: "text-orange-800",
+      glowClass: "bg-orange-400/25",
+    },
+    {
+      id: "payout",
+      stepNumber: 3,
+      label: "Total Net Payout to Bank (incl. VAT)",
+      hint: "Goods sold − all Wolt fees & expenses → bank transfer",
+      value: payout,
+      enterAnimation: "enter-left",
+      cardClass:
+        "border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-indigo-50/80 shadow-glow",
+      indexClass: "text-sky-600",
+      valueClass: "text-sky-800",
+      glowClass: "bg-sky-400/25",
+    },
+    {
+      id: "story-net",
+      stepNumber: 4,
+      label: "Net income Story Phone (incl. VAT)",
+      hint: hasWoltSummary
+        ? "Payout to bank − product self cost (COGS)"
+        : "Sold − Wolt commission − product self cost",
+      value: headlineNet,
+      enterAnimation: "zoom-in",
+      cardClass:
+        "border-emerald-200/90 bg-gradient-to-br from-emerald-50 via-white to-teal-50/80 shadow-glow-emerald",
+      indexClass: "text-emerald-600",
+      valueClass: "text-emerald-700",
+      glowClass: "bg-emerald-400/25",
+    },
+  ];
+
   return (
     <section className="analytics-shell">
       <div className="analytics-grid-bg border-b border-slate-200/60 px-5 py-6 sm:px-8 sm:py-7">
@@ -261,9 +449,39 @@ export function Dashboard({ summary, includeAllocatedAdCost = false }: Dashboard
                 </span>
               )}
             </div>
-            <h2 className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-              Financial overview
-            </h2>
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h2 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+                Financial overview
+              </h2>
+              {reportPeriod && (
+                <>
+                  <span
+                    className="hidden h-5 w-px shrink-0 bg-gradient-to-b from-transparent via-slate-300 to-transparent sm:block"
+                    aria-hidden
+                  />
+                  <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/90 bg-gradient-to-r from-violet-50/95 via-white to-indigo-50/90 px-3.5 py-1.5 shadow-sm shadow-violet-500/10">
+                    <svg
+                      className="h-4 w-4 shrink-0 text-violet-600"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span className="font-mono text-sm font-semibold tabular-nums tracking-tight text-violet-900">
+                      {reportPeriod}
+                    </span>
+                  </span>
+                </>
+              )}
+            </div>
             <p className="mt-1.5 max-w-2xl text-sm font-medium text-ink-muted">
               {hasWoltSummary
                 ? "Official Wolt payout reconciled with your delivered orders and product costs."
@@ -288,41 +506,14 @@ export function Dashboard({ summary, includeAllocatedAdCost = false }: Dashboard
       </div>
 
       <div className="space-y-6 p-5 sm:p-8">
-        {/* Hero outcomes */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <HeroMetric
-            label="Net income totally"
-            formula={
-              hasWoltSummary
-                ? "Payout NET − product self cost (incl. VAT)"
-                : "Sold − Wolt commission − product self cost"
-            }
-            value={headlineNet}
-            variant="profit"
-            delay={0}
+        {/* 4 main KPI tabs — sequential cascade */}
+        <div id="period-totals" className="analytics-section scroll-mt-24 border-indigo-100/80 bg-gradient-to-b from-white/90 to-indigo-50/20">
+          <SectionHeader
+            title="Period totals"
+            subtitle="Each step appears after the previous amount finishes counting"
+            accent="bg-gradient-to-b from-indigo-500 to-violet-400"
           />
-          {hasWoltSummary && payout != null ? (
-            <HeroMetric
-              label="Payout NET"
-              formula="Goods sold − all Wolt expenses → bank transfer"
-              value={payout}
-              variant="payout"
-              delay={80}
-            />
-          ) : (
-            <article
-              style={{ animationDelay: "80ms" }}
-              className="analytics-hero animate-fade-up opacity-0 border-dashed border-slate-300 bg-slate-50/80"
-            >
-              <p className="analytics-label">Payout NET</p>
-              <p className="mt-4 font-display text-lg font-semibold text-ink-muted">
-                Upload standardSummary.csv
-              </p>
-              <p className="mt-2 text-sm text-ink-faint">
-                Required for official Wolt bank payout and expense totals.
-              </p>
-            </article>
-          )}
+          <MainHeroCascade steps={heroSteps} onComplete={onHeroCascadeComplete} />
         </div>
 
         {/* Money flow */}

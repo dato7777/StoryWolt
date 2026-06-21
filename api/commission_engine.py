@@ -135,6 +135,10 @@ class CalculationSummary:
     wolt_summary_distribution_gap_incl_vat: float | None = None
     per_item_expenses_excluded_incl_vat: float | None = None
     per_item_expenses_excluded_after_ads_incl_vat: float | None = None
+    # Report period — from standardSummary "Time frame" or min/max delivered order dates.
+    report_period_label: str | None = None
+    report_period_start: str | None = None
+    report_period_end: str | None = None
 
 
 @dataclass
@@ -778,6 +782,87 @@ def parse_wolt_order_date(value: str) -> date | None:
     return date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
 
 
+def parse_wolt_dot_date(value: str) -> date | None:
+    """Parse DD.MM.YYYY from standardSummary Time frame column."""
+    match = re.match(r"(\d{2})\.(\d{2})\.(\d{4})", (value or "").strip())
+    if not match:
+        return None
+    return date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+
+
+def parse_time_frame_label(value: str) -> tuple[date | None, date | None, str]:
+    """Parse Wolt invoice time frame like '01.04.2026 - 15.04.2026'."""
+    cleaned = (value or "").strip()
+    if not cleaned:
+        return None, None, ""
+    parts = re.split(r"\s*-\s*", cleaned, maxsplit=1)
+    if len(parts) == 2:
+        start = parse_wolt_dot_date(parts[0])
+        end = parse_wolt_dot_date(parts[1])
+        return start, end, cleaned
+    single = parse_wolt_dot_date(cleaned)
+    if single:
+        return single, single, cleaned
+    return None, None, cleaned
+
+
+def format_report_period_label(start: date, end: date) -> str:
+    """Human-readable period label for API consumers."""
+    if start == end:
+        return start.strftime("%d %b %Y")
+    if start.year == end.year and start.month == end.month:
+        return f"{start.day}–{end.day} {start.strftime('%b %Y')}"
+    return f"{start.strftime('%d %b %Y')} – {end.strftime('%d %b %Y')}"
+
+
+def compute_period_from_orders(
+    orders: list[CalculatedOrder],
+) -> tuple[str | None, str | None, str | None]:
+    """Derive report period from earliest/latest delivered order dates."""
+    dates: list[date] = []
+    for order in orders:
+        if (ref_date := order_reference_date(order)) is not None:
+            dates.append(ref_date)
+    if not dates:
+        return None, None, None
+    start = min(dates)
+    end = max(dates)
+    return format_report_period_label(start, end), start.isoformat(), end.isoformat()
+
+
+def enrich_summary_with_report_period(
+    summary: CalculationSummary,
+    payment_meta: dict[str, Any] | None,
+    orders: list[CalculatedOrder],
+) -> CalculationSummary:
+    """Attach Wolt invoice time frame or order-date span to the summary."""
+    label: str | None = None
+    start: str | None = None
+    end: str | None = None
+
+    if payment_meta and payment_meta.get("report_time_frame"):
+        raw = str(payment_meta["report_time_frame"]).strip()
+        parsed_start, parsed_end, _ = parse_time_frame_label(raw)
+        if parsed_start and parsed_end:
+            label = format_report_period_label(parsed_start, parsed_end)
+            start = parsed_start.isoformat()
+            end = parsed_end.isoformat()
+        else:
+            label = raw
+    else:
+        label, start, end = compute_period_from_orders(orders)
+
+    if not label and not start:
+        return summary
+
+    return replace(
+        summary,
+        report_period_label=label,
+        report_period_start=start,
+        report_period_end=end,
+    )
+
+
 def parse_ad_campaign_from_label(label: str, amount_incl_vat: float) -> AdCampaignCharge | None:
     """Extract attributed-purchase date window from a WOLT INVOICE ad campaign line."""
     if "Ad campaign" not in label:
@@ -1133,6 +1218,14 @@ def parse_payment_details_csv(csv_text: str) -> dict[str, Any]:
                 pass
 
         if section == "wolt":
+            time_frame = parts[3] if len(parts) > 3 else ""
+            if time_frame and "report_time_frame" not in result:
+                parsed_start, parsed_end, _ = parse_time_frame_label(time_frame)
+                result["report_time_frame"] = time_frame
+                if parsed_start:
+                    result["report_period_start"] = parsed_start.isoformat()
+                if parsed_end:
+                    result["report_period_end"] = parsed_end.isoformat()
             result["wolt_invoice_lines"].append(
                 {
                     "label": row_label,
@@ -1591,6 +1684,7 @@ def run_calculation(
 
         summary = enrich_summary_with_wolt_summary(summary, payment_meta)
         summary = enrich_summary_with_expense_breakdown(summary, payment_meta, ad_allocation)
+        summary = enrich_summary_with_report_period(summary, payment_meta, orders)
         invoice = build_invoice_reconciliation(summary, payment_meta)
 
         invoice_dict = asdict(invoice)

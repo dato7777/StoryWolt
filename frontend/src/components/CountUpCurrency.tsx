@@ -4,6 +4,8 @@ interface CountUpCurrencyProps {
   value: number | undefined | null;
   durationMs?: number;
   className?: string;
+  animate?: boolean;
+  onComplete?: () => void;
 }
 
 /** ILS amount that counts up quickly to the final value */
@@ -11,8 +13,10 @@ export function CountUpCurrency({
   value,
   durationMs = 1100,
   className = "",
+  animate = true,
+  onComplete,
 }: CountUpCurrencyProps) {
-  const animated = useCountUp(value, durationMs);
+  const animated = useCountUp(value, durationMs, { enabled: animate, onComplete });
 
   if (value == null || Number.isNaN(value)) {
     return <span className={className}>—</span>;
