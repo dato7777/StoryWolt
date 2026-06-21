@@ -59,13 +59,11 @@ export default {
         tabSpotlight: {
           "0%, 100%": {
             boxShadow:
-              "0 0 0 0 rgba(239, 68, 68, 0.45), 0 0 0 1px rgba(239, 68, 68, 0.35), 0 12px 32px rgba(239, 68, 68, 0.25)",
-            transform: "translateY(0) scale(1)",
+              "inset 0 0 0 1px rgba(239, 68, 68, 0.45), 0 0 0 0 rgba(239, 68, 68, 0.35), 0 8px 24px rgba(239, 68, 68, 0.2)",
           },
           "50%": {
             boxShadow:
-              "0 0 0 6px rgba(239, 68, 68, 0.2), 0 0 0 2px rgba(239, 68, 68, 0.5), 0 16px 40px rgba(239, 68, 68, 0.35)",
-            transform: "translateY(-2px) scale(1.02)",
+              "inset 0 0 0 2px rgba(239, 68, 68, 0.55), 0 0 0 4px rgba(239, 68, 68, 0.18), 0 12px 32px rgba(239, 68, 68, 0.28)",
           },
         },
         orbFloat: {

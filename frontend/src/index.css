@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body {
+    @apply overflow-x-hidden;
+  }
+
   body {
     @apply min-h-screen font-sans text-base font-medium text-ink antialiased;
     background-color: #d8e2f3;

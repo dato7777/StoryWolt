@@ -15,6 +15,24 @@ import type { CalculationResponse, UploadFiles } from "./types";
 type TabId = "orders" | "products" | "losses";
 type AuthState = "checking" | "guest" | "authenticated";
 
+/** Smooth vertical scroll only — avoids horizontal page drift from scrollIntoView inline. */
+function scrollToElementVertically(
+  element: HTMLElement,
+  block: ScrollLogicalPosition = "center",
+) {
+  const rect = element.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  let targetTop = rect.top + window.scrollY;
+
+  if (block === "center") {
+    targetTop -= (viewportHeight - rect.height) / 2;
+  } else if (block === "end") {
+    targetTop -= viewportHeight - rect.height;
+  }
+
+  window.scrollTo({ top: Math.max(0, targetTop), left: window.scrollX, behavior: "smooth" });
+}
+
 export default function App() {
   const [authState, setAuthState] = useState<AuthState>(
     hasAuthSession() ? "checking" : "guest",
@@ -32,7 +50,6 @@ export default function App() {
   const [showLossBanner, setShowLossBanner] = useState(false);
   const [highlightLossesTab, setHighlightLossesTab] = useState(false);
   const tabsBarRef = useRef<HTMLDivElement>(null);
-  const lossesTabRef = useRef<HTMLButtonElement>(null);
   const lossBannerRef = useRef<HTMLDivElement>(null);
   const resultGenerationRef = useRef(0);
   const lossSequenceTimersRef = useRef<number[]>([]);
@@ -73,7 +90,9 @@ export default function App() {
 
     scheduleLossSequenceTimer(() => {
       if (resultGenerationRef.current !== generation) return;
-      lossBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (lossBannerRef.current) {
+        scrollToElementVertically(lossBannerRef.current, "center");
+      }
     }, 120);
 
     if (lossesOnLoad <= 0) return;
@@ -81,12 +100,9 @@ export default function App() {
     scheduleLossSequenceTimer(() => {
       if (resultGenerationRef.current !== generation) return;
       setHighlightLossesTab(true);
-      tabsBarRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      lossesTabRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
+      if (tabsBarRef.current) {
+        scrollToElementVertically(tabsBarRef.current, "center");
+      }
     }, 1600);
 
     scheduleLossSequenceTimer(() => {
@@ -266,17 +282,6 @@ export default function App() {
             )}
 
             <div ref={tabsBarRef} id="main-tabs" className="relative scroll-mt-28">
-              {highlightLossesTab && (
-                <div
-                  className="pointer-events-none absolute -top-3 right-[4%] z-20 flex flex-col items-center sm:right-[6%]"
-                  aria-hidden
-                >
-                  <span className="rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg shadow-red-500/40">
-                    Tap here
-                  </span>
-                  <span className="mt-0.5 text-2xl leading-none text-red-600">↓</span>
-                </div>
-              )}
               <div className="modern-panel flex gap-2 p-2">
               {(
                 [
@@ -320,17 +325,27 @@ export default function App() {
               ).map((tab) => (
                 <button
                   key={tab.id}
-                  ref={tab.id === "losses" ? lossesTabRef : undefined}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`relative flex flex-1 items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-base font-bold transition-all duration-300 ease-out ${
                     activeTab === tab.id ? tab.active : tab.idle
                   } ${
                     tab.id === "losses" && highlightLossesTab
-                      ? "animate-tab-spotlight z-10 ring-2 ring-red-500 ring-offset-2"
+                      ? "animate-tab-spotlight z-10 ring-2 ring-inset ring-red-500"
                       : ""
                   }`}
                 >
+                  {tab.id === "losses" && highlightLossesTab && (
+                    <span
+                      className="pointer-events-none absolute -top-11 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center"
+                      aria-hidden
+                    >
+                      <span className="rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg shadow-red-500/40">
+                        Tap here
+                      </span>
+                      <span className="mt-0.5 text-2xl leading-none text-red-600">↓</span>
+                    </span>
+                  )}
                   {tab.label}
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-sm font-bold tabular-nums ${
