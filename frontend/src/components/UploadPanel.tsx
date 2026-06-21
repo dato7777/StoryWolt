@@ -1,5 +1,5 @@
 /**
- * Multi-file upload panel — orderNumbers (required) + itemsSold (optional).
+ * Multi-file upload panel — orderNumbers (required) + standardSummary (optional).
  */
 
 import type { ChangeEvent } from "react";
@@ -84,7 +84,7 @@ export function UploadPanel({
   loading,
 }: UploadPanelProps) {
   const canCalculate = Boolean(files.orderNumbers) && !loading;
-  const fileCount = [files.orderNumbers, files.itemsSold, files.paymentDetails].filter(Boolean).length;
+  const fileCount = [files.orderNumbers, files.paymentDetails].filter(Boolean).length;
 
   return (
     <section className="modern-panel p-6 sm:p-7">
@@ -114,7 +114,7 @@ export function UploadPanel({
         </button>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <FileSlot
           label="orderNumbers.csv"
           hint="Required · delivered orders"
@@ -124,15 +124,8 @@ export function UploadPanel({
           onChange={(file) => onFilesChange({ ...files, orderNumbers: file })}
         />
         <FileSlot
-          label="itemsSold.csv"
-          hint="Optional · merchant SKUs"
-          fileName={files.itemsSold?.name ?? null}
-          disabled={loading}
-          onChange={(file) => onFilesChange({ ...files, itemsSold: file })}
-        />
-        <FileSlot
-          label="payment_details.csv"
-          hint="Optional · invoice waterfall"
+          label="standardSummary.csv"
+          hint="Optional · Wolt payout summary (Financial snapshot)"
           fileName={files.paymentDetails?.name ?? null}
           disabled={loading}
           onChange={(file) => onFilesChange({ ...files, paymentDetails: file })}

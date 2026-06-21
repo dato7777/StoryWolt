@@ -110,6 +110,16 @@ class CalculationSummary:
     total_commission_with_vat: float
     total_net_income: float
     total_product_self_cost: float
+    # Populated when standardSummary / payment_details CSV is uploaded.
+    wolt_summary_gross_goods: float | None = None
+    wolt_summary_expenses_net: float | None = None
+    wolt_summary_expenses_incl_vat: float | None = None
+    wolt_summary_distribution_incl_vat: float | None = None
+    wolt_summary_remunerations: float | None = None
+    wolt_summary_self_billing_deductions_incl_vat: float | None = None
+    wolt_summary_self_billing_negative_incl_vat: float | None = None
+    wolt_summary_payout: float | None = None
+    wolt_summary_net_income: float | None = None
 
 
 @dataclass
@@ -777,6 +787,31 @@ def aggregate_products_from_orders(
     return rows
 
 
+def collect_missing_commission_products(
+    rows: list[CalculatedRow],
+) -> list[dict[str, Any]]:
+    """
+    Products sold in delivered orders with no commission % from offers_commission.xlsx.
+
+    status missing_commission — matched in catalog but commission_home_delivery is empty.
+    status not_found — no matching row in offers_commission.xlsx.
+    """
+    missing = [
+        {
+            "item_name": row.item_name,
+            "merchant_sku": row.merchant_sku,
+            "quantity": row.quantity,
+            "sold_total": row.sold_total,
+            "status": row.status,
+            "match_method": row.match_method,
+        }
+        for row in rows
+        if row.status in ("missing_commission", "not_found")
+    ]
+    missing.sort(key=lambda item: item["sold_total"], reverse=True)
+    return missing
+
+
 def build_summary_from_rows(
     rows: list[CalculatedRow],
     delivered_order_count: int = 0,
@@ -807,53 +842,218 @@ def build_summary_from_rows(
     )
 
 
+def aggregate_self_billing_expense_totals(
+    lines: list[dict[str, Any]],
+) -> dict[str, float]:
+    """
+    Sum SELF-BILLING rows (all except Total, goods sold) into expense adjustments.
+
+    Negative row totals → added to expenses (sum of absolute values).
+    Positive row totals → discounted from expenses.
+    """
+    negative_net = 0.0
+    negative_incl = 0.0
+    positive_net = 0.0
+    positive_incl = 0.0
+
+    for line in lines:
+        total = float(line["amount"])
+        net = float(line["net"])
+        if total < 0:
+            negative_net += abs(net)
+            negative_incl += abs(total)
+        elif total > 0:
+            positive_net += net
+            positive_incl += total
+
+    net_add_net = round(negative_net - positive_net, 2)
+    net_add_incl = round(negative_incl - positive_incl, 2)
+
+    return {
+        "self_billing_negative_sum_net": round(negative_net, 2),
+        "self_billing_negative_sum_incl_vat": round(negative_incl, 2),
+        "self_billing_positive_sum_net": round(positive_net, 2),
+        "self_billing_positive_sum_incl_vat": round(positive_incl, 2),
+        "total_self_billing_deductions_net": net_add_net,
+        "total_self_billing_deductions_incl_vat": net_add_incl,
+    }
+
+
+def self_billing_expense_contribution(net: float, total_incl_vat: float) -> tuple[float, float]:
+    """
+    Map a SELF-BILLING INVOICE row (except Total, goods sold) to expense deltas.
+
+    Wolt convention in standardSummary:
+        negative TOTAL → add to merchant expenses (e.g. Remunerations -610.04)
+        positive TOTAL → reduce expenses (credit / discount to merchant)
+    """
+    if total_incl_vat < 0:
+        return abs(net), abs(total_incl_vat)
+    if total_incl_vat > 0:
+        return -abs(net), -abs(total_incl_vat)
+    return 0.0, 0.0
+
+
 def parse_payment_details_csv(csv_text: str) -> dict[str, Any]:
     """
-    Extract self-billing and WOLT INVOICE totals from payment_details.csv.
+    Extract self-billing and WOLT INVOICE totals from standardSummary.csv
+    (or legacy payment_details.csv).
 
-    Used for display-only reconciliation waterfall; does not affect commission math.
+    Column layout (semicolon-separated):
+        …; label; NET; VAT; TOTAL (incl. VAT)
+
+    Total Wolt expenses = WOLT INVOICE charges + SELF-BILLING adjustments:
+        Every data row between SELF-BILLING INVOICE and END PAYOUT is included
+        except "Total, goods sold" (revenue only).
+        Negative row totals add to expenses; positive row totals reduce expenses.
     """
-    result: dict[str, Any] = {"wolt_invoice_lines": []}
-    wolt_line_labels = (
-        "Distribution,",
-        "Venue lateness",
-        "Delivery discount",
-        "Ad campaign",
-        "Weekly ",
-    )
+    result: dict[str, Any] = {
+        "wolt_invoice_lines": [],
+        "self_billing_lines": [],
+    }
+    section: str | None = None
+    wolt_net_total = 0.0
+    wolt_vat_total = 0.0
+    distribution_incl_vat = 0.0
 
     for line in csv_text.splitlines():
+        if "Date of issue" in line and "WOLT INVOICE" in line:
+            section = "wolt"
+            continue
+        if "Date of issue" in line and "SELF-BILLING INVOICE" in line:
+            section = "self_billing"
+            continue
+        if "END PAYOUT" in line or "Payout amount" in line:
+            section = "payout"
+
         parts = [p.strip() for p in line.split(";")]
-        if len(parts) < 2:
+        if len(parts) < 5:
             continue
 
         row_label = parts[4] if len(parts) > 4 else ""
-        last_value = parts[-1].replace(",", "").strip()
+        if not row_label or row_label in ("WOLT INVOICE", "SELF-BILLING INVOICE"):
+            continue
 
+        last_value = parts[-1].replace(",", "").strip()
         try:
             amount = float(last_value)
         except ValueError:
             continue
 
+        if row_label == "Payout amount":
+            result["payout_amount"] = amount
+            continue
+
         if row_label == "Total, goods sold":
             result["gross_goods_sold"] = amount
-        elif row_label == "Total, goods discounted by merchant":
-            result["merchant_discounts"] = abs(amount)
-        elif row_label == "Remunerations":
-            result["remunerations"] = abs(amount)
-        elif row_label == "Payout amount":
-            result["payout_amount"] = amount
-        elif any(row_label.startswith(prefix) for prefix in wolt_line_labels):
+            continue
+
+        # Parse NET / VAT / TOTAL when present (standardSummary data rows).
+        net = vat = total = amount
+        if len(parts) >= 8:
+            try:
+                net = float(parts[5].replace(",", ""))
+                vat = float(parts[6].replace(",", ""))
+                total = float(parts[7].replace(",", ""))
+            except ValueError:
+                pass
+
+        if section == "wolt":
             result["wolt_invoice_lines"].append(
-                {"label": row_label, "amount": round(amount, 2)}
+                {
+                    "label": row_label,
+                    "net": round(net, 2),
+                    "vat": round(vat, 2),
+                    "amount": round(total, 2),
+                }
             )
+            wolt_net_total += net
+            wolt_vat_total += vat
+            if row_label.startswith("Distribution,"):
+                distribution_incl_vat += total
+            continue
+
+        if section == "self_billing":
+            result["self_billing_lines"].append(
+                {
+                    "label": row_label,
+                    "net": round(net, 2),
+                    "vat": round(vat, 2),
+                    "amount": round(total, 2),
+                }
+            )
+            if row_label == "Total, goods discounted by merchant":
+                result["merchant_discounts"] = abs(total)
+            elif row_label == "Remunerations" and total < 0:
+                result["remunerations"] = abs(total)
 
     if result["wolt_invoice_lines"]:
         result["total_wolt_invoice"] = round(
             sum(line["amount"] for line in result["wolt_invoice_lines"]), 2
         )
+        result["total_wolt_invoice_net"] = round(wolt_net_total, 2)
+        result["total_wolt_invoice_vat"] = round(wolt_vat_total, 2)
+        result["total_wolt_distribution_incl_vat"] = round(distribution_incl_vat, 2)
+
+    if result["self_billing_lines"]:
+        sb_totals = aggregate_self_billing_expense_totals(result["self_billing_lines"])
+        result.update(sb_totals)
+
+    wolt_invoice_incl = result.get("total_wolt_invoice", 0.0)
+    wolt_invoice_net = result.get("total_wolt_invoice_net", 0.0)
+    self_billing_add_incl = result.get("total_self_billing_deductions_incl_vat", 0.0)
+    self_billing_add_net = result.get("total_self_billing_deductions_net", 0.0)
+    result["total_wolt_expenses_incl_vat"] = round(
+        wolt_invoice_incl + self_billing_add_incl, 2
+    )
+    result["total_wolt_expenses_net"] = round(wolt_invoice_net + self_billing_add_net, 2)
 
     return result
+
+
+def enrich_summary_with_wolt_summary(
+    summary: CalculationSummary,
+    payment_meta: dict[str, Any] | None,
+) -> CalculationSummary:
+    """Overlay Wolt standardSummary totals onto Financial snapshot KPIs."""
+    if not payment_meta or payment_meta.get("gross_goods_sold") is None:
+        return summary
+
+    payout = payment_meta.get("payout_amount")
+    wolt_net_income = (
+        round(payout - summary.total_product_self_cost, 2)
+        if payout is not None
+        else None
+    )
+
+    return CalculationSummary(
+        row_count=summary.row_count,
+        matched_count=summary.matched_count,
+        unmatched_count=summary.unmatched_count,
+        delivered_order_count=summary.delivered_order_count,
+        rejected_order_count=summary.rejected_order_count,
+        rejected_order_total=summary.rejected_order_total,
+        total_gross=summary.total_gross,
+        total_list_value=summary.total_list_value,
+        total_sold_value=summary.total_sold_value,
+        total_commission_before_vat=summary.total_commission_before_vat,
+        total_commission_with_vat=summary.total_commission_with_vat,
+        total_net_income=summary.total_net_income,
+        total_product_self_cost=summary.total_product_self_cost,
+        wolt_summary_gross_goods=payment_meta.get("gross_goods_sold"),
+        wolt_summary_expenses_net=payment_meta.get("total_wolt_expenses_net"),
+        wolt_summary_expenses_incl_vat=payment_meta.get("total_wolt_expenses_incl_vat"),
+        wolt_summary_distribution_incl_vat=payment_meta.get("total_wolt_distribution_incl_vat"),
+        wolt_summary_remunerations=payment_meta.get("remunerations"),
+        wolt_summary_self_billing_deductions_incl_vat=payment_meta.get(
+            "total_self_billing_deductions_incl_vat"
+        ),
+        wolt_summary_self_billing_negative_incl_vat=payment_meta.get(
+            "self_billing_negative_sum_incl_vat"
+        ),
+        wolt_summary_payout=payment_meta.get("payout_amount"),
+        wolt_summary_net_income=wolt_net_income,
+    )
 
 
 def build_invoice_reconciliation(
@@ -1157,6 +1357,7 @@ def run_calculation(
         payment_meta = (
             parse_payment_details_csv(payment_details_csv) if payment_details_csv else None
         )
+        summary = enrich_summary_with_wolt_summary(summary, payment_meta)
         invoice = build_invoice_reconciliation(summary, payment_meta)
 
         invoice_dict = asdict(invoice)
@@ -1170,10 +1371,11 @@ def run_calculation(
             "summary": asdict(summary),
             "rows": [asdict(row) for row in rows],
             "orders": [asdict(order) for order in orders],
+            "missing_commission_products": collect_missing_commission_products(rows),
             "invoice_reconciliation": invoice_dict,
             "data_source": "orderNumbers_delivered_only",
             "rejected_excluded": True,
-            "upload_format": "orderNumbers.csv (required) + itemsSold.csv (optional) + payment_details.csv (optional)",
+            "upload_format": "orderNumbers.csv (required) + standardSummary.csv (optional) + itemsSold.csv (optional)",
             "formula": formula,
         }
 
@@ -1202,6 +1404,7 @@ def run_calculation(
         "summary": summary_dict,
         "rows": [asdict(row) for row in calculated_rows],
         "orders": [],
+        "missing_commission_products": collect_missing_commission_products(calculated_rows),
         "data_source": "itemsSold_only",
         "rejected_excluded": False,
         "warning": "itemsSold includes rejected orders. Upload orderNumbers.csv for invoice-accurate totals.",

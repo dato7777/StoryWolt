@@ -14,6 +14,20 @@ export interface CalculationSummary {
   total_commission_with_vat: number;
   total_net_income: number;
   total_product_self_cost?: number;
+  /** From standardSummary.csv — Total, goods sold incl. VAT */
+  wolt_summary_gross_goods?: number | null;
+  /** Sum of WOLT INVOICE NET column */
+  wolt_summary_expenses_net?: number | null;
+  /** Sum of all WOLT INVOICE TOTAL column (distribution + ads + discounts + …) */
+  wolt_summary_expenses_incl_vat?: number | null;
+  wolt_summary_distribution_incl_vat?: number | null;
+  wolt_summary_remunerations?: number | null;
+  wolt_summary_self_billing_deductions_incl_vat?: number | null;
+  /** Sum of |TOTAL| for all negative self-billing rows — added to expenses */
+  wolt_summary_self_billing_negative_incl_vat?: number | null;
+  wolt_summary_payout?: number | null;
+  /** Payout NET − product self cost (when standardSummary uploaded) */
+  wolt_summary_net_income?: number | null;
 }
 
 export interface CalculatedRow {
@@ -106,10 +120,20 @@ export interface InvoiceReconciliation {
   phases?: InvoicePhase[];
 }
 
+export interface MissingCommissionProduct {
+  item_name: string;
+  merchant_sku: string;
+  quantity: number;
+  sold_total: number;
+  status: "missing_commission" | "not_found" | string;
+  match_method: string;
+}
+
 export interface CalculationResponse {
   summary: CalculationSummary;
   rows: CalculatedRow[];
   orders: CalculatedOrder[];
+  missing_commission_products?: MissingCommissionProduct[];
   invoice_reconciliation?: InvoiceReconciliation;
   data_source: string;
   rejected_excluded: boolean;

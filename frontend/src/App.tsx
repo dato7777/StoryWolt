@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { logoutAdmin, verifySession } from "./api/auth";
 import { calculateNetIncome } from "./api/client";
 import { Dashboard } from "./components/Dashboard";
-import { InvoiceWaterfall } from "./components/InvoiceWaterfall";
 import { LoginPage } from "./components/LoginPage";
+import { MissingCommissionPanel } from "./components/MissingCommissionPanel";
 import { OrdersTable } from "./components/OrdersTable";
 import { ResultsTable } from "./components/ResultsTable";
 import { UploadPanel } from "./components/UploadPanel";
@@ -54,14 +54,10 @@ export default function App() {
     try {
       const payload: {
         orderNumbersCsvText: string;
-        itemsSoldCsvText?: string;
         paymentDetailsCsvText?: string;
       } = {
         orderNumbersCsvText: await files.orderNumbers.text(),
       };
-      if (files.itemsSold) {
-        payload.itemsSoldCsvText = await files.itemsSold.text();
-      }
       if (files.paymentDetails) {
         payload.paymentDetailsCsvText = await files.paymentDetails.text();
       }
@@ -80,11 +76,6 @@ export default function App() {
       setLoading(false);
     }
   }
-
-  const warningCount = useMemo(
-    () => result?.summary.unmatched_count ?? 0,
-    [result],
-  );
 
   if (authState === "checking") {
     return (
@@ -162,11 +153,7 @@ export default function App() {
 
         {result && (
           <>
-            <Dashboard summary={result.summary} formula={result.formula} />
-
-            {result.invoice_reconciliation && (
-              <InvoiceWaterfall invoice={result.invoice_reconciliation} />
-            )}
+            <Dashboard summary={result.summary} />
 
             {(result.summary.rejected_order_count ?? 0) > 0 && (
               <div className="modern-panel border-violet-200 bg-violet-50/80 px-5 py-4 font-medium text-violet-900">
@@ -188,10 +175,8 @@ export default function App() {
               </div>
             )}
 
-            {warningCount > 0 && (
-              <div className="modern-panel border-amber-200 bg-amber-50/90 px-5 py-4 font-medium text-amber-900">
-                {warningCount} product line(s) have no commission % in offers_commission.xlsx.
-              </div>
+            {(result.missing_commission_products?.length ?? 0) > 0 && (
+              <MissingCommissionPanel products={result.missing_commission_products!} />
             )}
 
             <div className="modern-panel flex gap-2 p-2">
