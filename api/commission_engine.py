@@ -18,7 +18,8 @@ from __future__ import annotations
 import csv
 import io
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,11 @@ SELF_COST_COLUMN = "Product Self cost (including VAT)"
 
 # Parses "3x Product name 119 ILS" fragments inside orderNumbers Items column.
 ITEM_PATTERN = re.compile(r"(\d+)x\s+(.+?)\s+([\d.]+)\s+ILS")
+
+AD_CAMPAIGN_BETWEEN_PATTERN = re.compile(
+    r"between (\d{4}-\d{2}-\d{2}) - (\d{4}-\d{2}-\d{2})"
+)
+AD_CAMPAIGN_ON_PATTERN = re.compile(r"on (\d{4}-\d{2}-\d{2})\b")
 
 
 def normalize_product_name(name: str) -> str:
@@ -91,6 +97,9 @@ class CalculatedRow:
     net_income_per_item: float
     status: str
     match_method: str
+    allocated_ad_cost: float = 0.0
+    net_income_after_ad_cost: float = 0.0
+    net_income_after_ad_cost_per_item: float = 0.0
 
 
 @dataclass
@@ -120,6 +129,22 @@ class CalculationSummary:
     wolt_summary_self_billing_negative_incl_vat: float | None = None
     wolt_summary_payout: float | None = None
     wolt_summary_net_income: float | None = None
+    wolt_summary_ad_campaigns_incl_vat: float | None = None
+    wolt_summary_ad_campaigns_allocated_incl_vat: float | None = None
+    wolt_summary_other_fees_incl_vat: float | None = None
+    wolt_summary_distribution_gap_incl_vat: float | None = None
+    per_item_expenses_excluded_incl_vat: float | None = None
+    per_item_expenses_excluded_after_ads_incl_vat: float | None = None
+
+
+@dataclass
+class AdCampaignCharge:
+    """One ad campaign line from WOLT INVOICE with a purchasable date window."""
+
+    label: str
+    amount_incl_vat: float
+    start_date: date
+    end_date: date
 
 
 @dataclass
@@ -140,6 +165,9 @@ class OrderLineItem:
     net_income_per_item: float
     status: str
     match_method: str
+    allocated_ad_cost: float = 0.0
+    net_income_after_ad_cost: float = 0.0
+    net_income_after_ad_cost_per_item: float = 0.0
 
 
 @dataclass
@@ -155,6 +183,8 @@ class CalculatedOrder:
     commission_with_vat: float
     net_income: float
     items: list[OrderLineItem]
+    allocated_ad_cost: float = 0.0
+    net_income_after_ad_cost: float = 0.0
 
 
 @dataclass
@@ -731,6 +761,141 @@ def parse_wolt_datetime(value: str) -> tuple[int, int, int, int, int]:
     )
 
 
+def parse_iso_date(value: str) -> date | None:
+    """Parse YYYY-MM-DD from Wolt ad campaign labels."""
+    try:
+        year, month, day = value.split("-")
+        return date(int(year), int(month), int(day))
+    except (ValueError, AttributeError):
+        return None
+
+
+def parse_wolt_order_date(value: str) -> date | None:
+    """Parse DD/MM/YYYY from orderNumbers Order placed / Delivery time."""
+    match = re.match(r"(\d{2})/(\d{2})/(\d{4})", value or "")
+    if not match:
+        return None
+    return date(int(match.group(3)), int(match.group(2)), int(match.group(1)))
+
+
+def parse_ad_campaign_from_label(label: str, amount_incl_vat: float) -> AdCampaignCharge | None:
+    """Extract attributed-purchase date window from a WOLT INVOICE ad campaign line."""
+    if "Ad campaign" not in label:
+        return None
+
+    between = AD_CAMPAIGN_BETWEEN_PATTERN.search(label)
+    if between:
+        start = parse_iso_date(between.group(1))
+        end = parse_iso_date(between.group(2))
+        if start and end:
+            return AdCampaignCharge(
+                label=label,
+                amount_incl_vat=round(amount_incl_vat, 2),
+                start_date=start,
+                end_date=end,
+            )
+
+    on_day = AD_CAMPAIGN_ON_PATTERN.search(label)
+    if on_day:
+        day = parse_iso_date(on_day.group(1))
+        if day:
+            return AdCampaignCharge(
+                label=label,
+                amount_incl_vat=round(amount_incl_vat, 2),
+                start_date=day,
+                end_date=day,
+            )
+
+    return None
+
+
+def order_reference_date(order: CalculatedOrder) -> date | None:
+    """Prefer order placed date for ad attribution windows (matches Wolt campaign labels)."""
+    return parse_wolt_order_date(order.order_placed) or parse_wolt_order_date(order.delivery_time)
+
+
+def distribute_amount_pro_rata(amount: float, weights: list[float]) -> list[float]:
+    """Split a fee across rows proportional to weights; fix rounding on the last row."""
+    if not weights or amount <= 0:
+        return [0.0] * len(weights)
+
+    total_weight = sum(weights)
+    if total_weight <= 0:
+        return [0.0] * len(weights)
+
+    shares = [round(amount * weight / total_weight, 2) for weight in weights]
+    rounding_delta = round(amount - sum(shares), 2)
+    if shares and rounding_delta:
+        shares[-1] = round(shares[-1] + rounding_delta, 2)
+    return shares
+
+
+def finalize_net_income_after_ad_cost(order: CalculatedOrder) -> None:
+    """Ensure after-ad fields exist even when no ad allocation was applied."""
+    order.allocated_ad_cost = round(order.allocated_ad_cost, 2)
+    order.net_income_after_ad_cost = round(order.net_income - order.allocated_ad_cost, 2)
+    for line in order.items:
+        line.allocated_ad_cost = round(line.allocated_ad_cost, 2)
+        line.net_income_after_ad_cost = round(line.net_income - line.allocated_ad_cost, 2)
+        line.net_income_after_ad_cost_per_item = net_income_per_unit(
+            line.net_income_after_ad_cost,
+            line.quantity,
+        )
+
+
+def apply_ad_campaign_allocation(
+    orders: list[CalculatedOrder],
+    campaigns: list[AdCampaignCharge],
+) -> dict[str, float]:
+    """
+    Allocate Wolt ad campaign fees to orders in each campaign's date window.
+
+    Within a window, cost is split by order gross; within an order, by line gross.
+    This is an estimate — Wolt bills attributed purchases, not every order in the range.
+    """
+    order_ad_totals: dict[str, float] = {order.order_number: 0.0 for order in orders}
+    unallocated = 0.0
+
+    for campaign in campaigns:
+        eligible = [
+            order
+            for order in orders
+            if (ref_date := order_reference_date(order)) is not None
+            and campaign.start_date <= ref_date <= campaign.end_date
+        ]
+        shares = distribute_amount_pro_rata(
+            campaign.amount_incl_vat,
+            [order.order_gross for order in eligible],
+        )
+        if not eligible:
+            unallocated = round(unallocated + campaign.amount_incl_vat, 2)
+            continue
+
+        for order, share in zip(eligible, shares):
+            order_ad_totals[order.order_number] = round(
+                order_ad_totals[order.order_number] + share,
+                2,
+            )
+
+    allocated_total = 0.0
+    for order in orders:
+        order.allocated_ad_cost = round(order_ad_totals.get(order.order_number, 0.0), 2)
+        allocated_total = round(allocated_total + order.allocated_ad_cost, 2)
+        line_shares = distribute_amount_pro_rata(
+            order.allocated_ad_cost,
+            [line.line_gross for line in order.items],
+        )
+        for line, share in zip(order.items, line_shares):
+            line.allocated_ad_cost = share
+
+        finalize_net_income_after_ad_cost(order)
+
+    return {
+        "total_ad_campaigns_allocated_incl_vat": round(allocated_total, 2),
+        "total_ad_campaigns_unallocated_incl_vat": round(unallocated, 2),
+    }
+
+
 def aggregate_products_from_orders(
     orders: list[CalculatedOrder],
 ) -> list[CalculatedRow]:
@@ -767,6 +932,11 @@ def aggregate_products_from_orders(
             row.commission_before_vat = round(row.commission_before_vat + line.commission_before_vat, 2)
             row.commission_with_vat = round(row.commission_with_vat + line.commission_with_vat, 2)
             row.net_income = round(row.net_income + line.net_income, 2)
+            row.allocated_ad_cost = round(row.allocated_ad_cost + line.allocated_ad_cost, 2)
+            row.net_income_after_ad_cost = round(
+                row.net_income_after_ad_cost + line.net_income_after_ad_cost,
+                2,
+            )
             if line.product_self_cost:
                 row.product_self_cost = line.product_self_cost
             if line.list_price is not None:
@@ -781,6 +951,10 @@ def aggregate_products_from_orders(
         if row.list_price is not None:
             row.list_total = round(row.list_price * row.quantity, 2)
         row.net_income_per_item = net_income_per_unit(row.net_income, row.quantity)
+        row.net_income_after_ad_cost_per_item = net_income_per_unit(
+            row.net_income_after_ad_cost,
+            row.quantity,
+        )
         row.commission_with_vat_per_item = fee_per_item(row.commission_with_vat, row.quantity)
 
     rows.sort(key=lambda row: row.sold_total, reverse=True)
@@ -995,6 +1169,24 @@ def parse_payment_details_csv(csv_text: str) -> dict[str, Any]:
         result["total_wolt_invoice_vat"] = round(wolt_vat_total, 2)
         result["total_wolt_distribution_incl_vat"] = round(distribution_incl_vat, 2)
 
+        ad_campaigns: list[AdCampaignCharge] = []
+        ad_total = 0.0
+        other_fees = 0.0
+        for line in result["wolt_invoice_lines"]:
+            label = line["label"]
+            amount = float(line["amount"])
+            if label.startswith("Distribution,"):
+                continue
+            campaign = parse_ad_campaign_from_label(label, amount)
+            if campaign:
+                ad_campaigns.append(campaign)
+                ad_total += amount
+            else:
+                other_fees += amount
+        result["ad_campaigns"] = ad_campaigns
+        result["total_ad_campaigns_incl_vat"] = round(ad_total, 2)
+        result["total_other_fees_incl_vat"] = round(other_fees, 2)
+
     if result["self_billing_lines"]:
         sb_totals = aggregate_self_billing_expense_totals(result["self_billing_lines"])
         result.update(sb_totals)
@@ -1053,6 +1245,35 @@ def enrich_summary_with_wolt_summary(
         ),
         wolt_summary_payout=payment_meta.get("payout_amount"),
         wolt_summary_net_income=wolt_net_income,
+    )
+
+
+def enrich_summary_with_expense_breakdown(
+    summary: CalculationSummary,
+    payment_meta: dict[str, Any] | None,
+    ad_allocation: dict[str, float] | None = None,
+) -> CalculationSummary:
+    """Explain which Wolt invoice expenses are excluded from default per-item net income."""
+    if not payment_meta or payment_meta.get("gross_goods_sold") is None:
+        return summary
+
+    wolt_expenses = float(payment_meta.get("total_wolt_expenses_incl_vat") or 0.0)
+    distribution = float(payment_meta.get("total_wolt_distribution_incl_vat") or 0.0)
+    excluded_total = round(wolt_expenses - summary.total_commission_with_vat, 2)
+    distribution_gap = round(distribution - summary.total_commission_with_vat, 2)
+    ad_allocated = float(
+        (ad_allocation or {}).get("total_ad_campaigns_allocated_incl_vat") or 0.0
+    )
+    excluded_after_ads = round(excluded_total - ad_allocated, 2)
+
+    return replace(
+        summary,
+        wolt_summary_ad_campaigns_incl_vat=payment_meta.get("total_ad_campaigns_incl_vat"),
+        wolt_summary_ad_campaigns_allocated_incl_vat=round(ad_allocated, 2),
+        wolt_summary_other_fees_incl_vat=payment_meta.get("total_other_fees_incl_vat"),
+        wolt_summary_distribution_gap_incl_vat=distribution_gap,
+        per_item_expenses_excluded_incl_vat=excluded_total,
+        per_item_expenses_excluded_after_ads_incl_vat=excluded_after_ads,
     )
 
 
@@ -1346,6 +1567,20 @@ def run_calculation(
             sku_map = build_sku_map_from_items_sold(parse_items_sold_csv(items_sold_csv))
 
         orders = calculate_orders_report(delivered, offers_by_name, offers_by_sku, sku_map)
+
+        payment_meta = (
+            parse_payment_details_csv(payment_details_csv) if payment_details_csv else None
+        )
+        ad_allocation: dict[str, float] = {}
+        if payment_meta and payment_meta.get("ad_campaigns"):
+            ad_allocation = apply_ad_campaign_allocation(
+                orders,
+                payment_meta["ad_campaigns"],
+            )
+        else:
+            for order in orders:
+                finalize_net_income_after_ad_cost(order)
+
         rows = aggregate_products_from_orders(orders)
         summary = build_summary_from_rows(
             rows,
@@ -1354,10 +1589,8 @@ def run_calculation(
             rejected_order_total=rejected_total,
         )
 
-        payment_meta = (
-            parse_payment_details_csv(payment_details_csv) if payment_details_csv else None
-        )
         summary = enrich_summary_with_wolt_summary(summary, payment_meta)
+        summary = enrich_summary_with_expense_breakdown(summary, payment_meta, ad_allocation)
         invoice = build_invoice_reconciliation(summary, payment_meta)
 
         invoice_dict = asdict(invoice)

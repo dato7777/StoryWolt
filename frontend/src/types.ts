@@ -28,6 +28,18 @@ export interface CalculationSummary {
   wolt_summary_payout?: number | null;
   /** Payout NET − product self cost (when standardSummary uploaded) */
   wolt_summary_net_income?: number | null;
+  /** Total ad campaign charges on WOLT INVOICE */
+  wolt_summary_ad_campaigns_incl_vat?: number | null;
+  /** Ad cost allocated to orders by campaign date window */
+  wolt_summary_ad_campaigns_allocated_incl_vat?: number | null;
+  /** Non-distribution, non-ad WOLT INVOICE fees (lateness, delivery discount, …) */
+  wolt_summary_other_fees_incl_vat?: number | null;
+  /** Wolt distribution invoice − per-order commission estimate */
+  wolt_summary_distribution_gap_incl_vat?: number | null;
+  /** Invoice expenses not in default per-item net income */
+  per_item_expenses_excluded_incl_vat?: number | null;
+  /** Remaining excluded after allocated ad cost is applied (toggle on) */
+  per_item_expenses_excluded_after_ads_incl_vat?: number | null;
 }
 
 export interface CalculatedRow {
@@ -45,6 +57,9 @@ export interface CalculatedRow {
   product_self_cost: number;
   net_income: number;
   net_income_per_item: number;
+  allocated_ad_cost?: number;
+  net_income_after_ad_cost?: number;
+  net_income_after_ad_cost_per_item?: number;
   status: string;
   match_method: string;
 }
@@ -62,6 +77,9 @@ export interface OrderLineItem {
   product_self_cost: number;
   net_income: number;
   net_income_per_item: number;
+  allocated_ad_cost?: number;
+  net_income_after_ad_cost?: number;
+  net_income_after_ad_cost_per_item?: number;
   status: string;
   match_method: string;
 }
@@ -75,6 +93,8 @@ export interface CalculatedOrder {
   commission_before_vat: number;
   commission_with_vat: number;
   net_income: number;
+  allocated_ad_cost?: number;
+  net_income_after_ad_cost?: number;
   items: OrderLineItem[];
 }
 

@@ -5,9 +5,11 @@
 import { Fragment, useMemo, useState } from "react";
 import { SearchField } from "./SearchField";
 import type { CalculatedRow } from "../types";
+import { rowDisplayNetIncome } from "../utils/netIncomeDisplay";
 
 interface ResultsTableProps {
   rows: CalculatedRow[];
+  includeAllocatedAdCost?: boolean;
 }
 
 function formatIls(value: number | undefined | null): string {
@@ -19,19 +21,48 @@ function formatIls(value: number | undefined | null): string {
   }).format(value);
 }
 
-function ProductDetails({ row }: { row: CalculatedRow }) {
+function ProductDetails({
+  row,
+  includeAllocatedAdCost,
+}: {
+  row: CalculatedRow;
+  includeAllocatedAdCost: boolean;
+}) {
+  const displayNet = rowDisplayNetIncome(row, includeAllocatedAdCost);
+  const displayNetPerItem = rowDisplayNetIncome(row, includeAllocatedAdCost, true);
   const tiles = [
     { label: "SKU", value: row.merchant_sku || "—", plain: true },
-    { label: "List price", value: formatIls(row.list_price), plain: false },
-    { label: "Sold total (fee base)", value: formatIls(row.sold_total ?? row.gross_total), plain: false },
+    { label: "Wolt menu price per unit (incl. VAT)", value: formatIls(row.list_price), plain: false },
+    {
+      label: "Actual sold total incl. VAT (fee base)",
+      value: formatIls(row.sold_total ?? row.gross_total),
+      plain: false,
+    },
     { label: "Fee %", value: row.commission_percent ?? "—", plain: true },
-    { label: "Fee pre-VAT", value: formatIls(row.commission_before_vat), plain: false },
-    { label: "Fee totally (×1.18)", value: formatIls(row.commission_with_vat), tone: "text-orange-800" },
-    { label: "Fee per item (×1.18)", value: formatIls(row.commission_with_vat_per_item ?? 0), tone: "text-orange-700" },
+    { label: "Wolt fee pre-VAT", value: formatIls(row.commission_before_vat), plain: false },
+    {
+      label: "Wolt fee totally incl. VAT (×1.18)",
+      value: formatIls(row.commission_with_vat),
+      tone: "text-orange-800",
+    },
+    {
+      label: "Wolt fee per item incl. VAT (×1.18)",
+      value: formatIls(row.commission_with_vat_per_item ?? 0),
+      tone: "text-orange-700",
+    },
     { label: "Self cost (incl. VAT)", value: formatIls(row.product_self_cost ?? 0), tone: "text-violet-800" },
-    { label: "Net income totally", value: formatIls(row.net_income), tone: "text-emerald-800" },
-    { label: "Net income per item", value: formatIls(row.net_income_per_item ?? 0), tone: "text-emerald-700" },
   ];
+  if (includeAllocatedAdCost && (row.allocated_ad_cost ?? 0) > 0) {
+    tiles.push({
+      label: "Allocated ad cost (incl. VAT)",
+      value: formatIls(row.allocated_ad_cost),
+      tone: "text-sky-800",
+    });
+  }
+  tiles.push(
+    { label: "Net income totally (incl. VAT)", value: formatIls(displayNet), tone: "text-emerald-800" },
+    { label: "Net income per item (incl. VAT)", value: formatIls(displayNetPerItem), tone: "text-emerald-700" },
+  );
 
   return (
     <div className="detail-grid">
@@ -44,7 +75,7 @@ function ProductDetails({ row }: { row: CalculatedRow }) {
       {row.list_total != null &&
         Math.abs(row.list_total - (row.sold_total ?? row.gross_total)) > 0.01 && (
         <div className="detail-tile col-span-2 sm:col-span-3 lg:col-span-4">
-          <p className="detail-tile-label">List value was</p>
+          <p className="detail-tile-label">Wolt menu line value was (incl. VAT)</p>
           <p className="detail-tile-value text-ink-muted">{formatIls(row.list_total)}</p>
         </div>
       )}
@@ -52,7 +83,10 @@ function ProductDetails({ row }: { row: CalculatedRow }) {
   );
 }
 
-export function ResultsTable({ rows }: ResultsTableProps) {
+export function ResultsTable({
+  rows,
+  includeAllocatedAdCost = false,
+}: ResultsTableProps) {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -81,6 +115,7 @@ export function ResultsTable({ rows }: ResultsTableProps) {
         <h2 className="text-lg font-bold text-ink sm:text-xl">Per-item net income</h2>
         <p className="mt-0.5 text-xs font-medium text-ink-faint sm:text-sm">
           Tap a row for full fee &amp; cost breakdown
+          {includeAllocatedAdCost ? " · ad cost deducted from net" : ""}
         </p>
       </div>
 
@@ -99,9 +134,9 @@ export function ResultsTable({ rows }: ResultsTableProps) {
               <th className="table-sticky-th w-8" />
               <th className="table-sticky-th w-[38%] sm:w-[32%]">Product</th>
               <th className="table-sticky-th w-10 text-center">Qty</th>
-              <th className="table-sticky-th hidden sm:table-cell">Sold</th>
-              <th className="table-sticky-th">Net total</th>
-              <th className="table-sticky-th hidden md:table-cell">Net/item</th>
+              <th className="table-sticky-th hidden sm:table-cell">Sold (incl. VAT)</th>
+              <th className="table-sticky-th">Net total (incl. VAT)</th>
+              <th className="table-sticky-th hidden md:table-cell">Net/item (incl. VAT)</th>
               <th className="table-sticky-th hidden lg:table-cell w-16">Status</th>
             </tr>
           </thead>
@@ -116,6 +151,8 @@ export function ResultsTable({ rows }: ResultsTableProps) {
             {filteredRows.map((row) => {
               const key = `${row.item_name}-${row.merchant_sku}`;
               const isOpen = expanded.has(key);
+              const displayNet = rowDisplayNetIncome(row, includeAllocatedAdCost);
+              const displayNetPerItem = rowDisplayNetIncome(row, includeAllocatedAdCost, true);
               return (
                 <Fragment key={key}>
                   <tr
@@ -131,10 +168,10 @@ export function ResultsTable({ rows }: ResultsTableProps) {
                       {formatIls(row.sold_total ?? row.gross_total)}
                     </td>
                     <td className="table-cell font-bold tabular-nums text-emerald-800">
-                      {formatIls(row.net_income)}
+                      {formatIls(displayNet)}
                     </td>
                     <td className="table-cell hidden tabular-nums text-emerald-700 md:table-cell">
-                      {formatIls(row.net_income_per_item ?? 0)}
+                      {formatIls(displayNetPerItem)}
                     </td>
                     <td className="table-cell hidden lg:table-cell">
                       <span
@@ -151,7 +188,10 @@ export function ResultsTable({ rows }: ResultsTableProps) {
                   {isOpen && (
                     <tr className="bg-slate-50/80">
                       <td colSpan={7} className="border-t border-slate-200/60 p-0">
-                        <ProductDetails row={row} />
+                        <ProductDetails
+                          row={row}
+                          includeAllocatedAdCost={includeAllocatedAdCost}
+                        />
                         <div className="flex items-center justify-between border-t border-slate-200/60 px-4 py-2 lg:hidden">
                           <span className="text-xs font-bold text-ink-faint">Status</span>
                           <span

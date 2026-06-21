@@ -4,13 +4,14 @@ import { calculateNetIncome } from "./api/client";
 import { Dashboard } from "./components/Dashboard";
 import { LoginPage } from "./components/LoginPage";
 import { MissingCommissionPanel } from "./components/MissingCommissionPanel";
+import { LossItemsTable, countLossItems } from "./components/LossItemsTable";
 import { OrdersTable } from "./components/OrdersTable";
 import { ResultsTable } from "./components/ResultsTable";
 import { UploadPanel } from "./components/UploadPanel";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
 import type { CalculationResponse, UploadFiles } from "./types";
 
-type TabId = "orders" | "products";
+type TabId = "orders" | "products" | "losses";
 type AuthState = "checking" | "guest" | "authenticated";
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
     paymentDetails: null,
   });
   const [activeTab, setActiveTab] = useState<TabId>("orders");
+  const [includeAllocatedAdCost, setIncludeAllocatedAdCost] = useState(false);
 
   useEffect(() => {
     if (authState !== "checking") return;
@@ -64,6 +66,7 @@ export default function App() {
 
       const response = await calculateNetIncome(payload);
       setResult(response);
+      setIncludeAllocatedAdCost(false);
       setActiveTab(response.orders.length > 0 ? "orders" : "products");
     } catch (err) {
       setResult(null);
@@ -90,6 +93,11 @@ export default function App() {
   }
 
   const adminName = getAuthUsername() ?? "admin";
+  const hasWoltSummary = result?.summary.wolt_summary_gross_goods != null;
+  const canAllocateAds = (result?.summary.wolt_summary_ad_campaigns_incl_vat ?? 0) > 0;
+  const lossItemCount = result
+    ? countLossItems(result.orders, includeAllocatedAdCost)
+    : 0;
 
   return (
     <div className="page-shell">
@@ -153,7 +161,10 @@ export default function App() {
 
         {result && (
           <>
-            <Dashboard summary={result.summary} />
+            <Dashboard
+              summary={result.summary}
+              includeAllocatedAdCost={includeAllocatedAdCost}
+            />
 
             {(result.summary.rejected_order_count ?? 0) > 0 && (
               <div className="modern-panel border-violet-200 bg-violet-50/80 px-5 py-4 font-medium text-violet-900">
@@ -186,19 +197,37 @@ export default function App() {
                     id: "orders" as TabId,
                     label: "Orders",
                     count: result.orders.length,
-                    active: "bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg shadow-indigo-500/25",
-                    idle: "text-ink-muted hover:bg-slate-50 hover:text-indigo-700",
-                    badge: "bg-indigo-100 text-indigo-700",
-                    badgeActive: "bg-white/20 text-white",
+                    active:
+                      "bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-indigo-400/30",
+                    idle:
+                      "group border border-transparent bg-white text-ink-muted hover:border-indigo-200/80 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 hover:text-indigo-700 hover:shadow-md hover:shadow-indigo-500/20 hover:-translate-y-0.5",
+                    badge: "bg-indigo-100 text-indigo-700 transition-colors duration-300 group-hover:bg-indigo-200 group-hover:text-indigo-800",
+                    badgeActive: "bg-white/25 text-white",
                   },
                   {
                     id: "products" as TabId,
                     label: "Products",
                     count: result.rows.length,
-                    active: "bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/25",
-                    idle: "text-ink-muted hover:bg-slate-50 hover:text-emerald-700",
-                    badge: "bg-emerald-100 text-emerald-700",
-                    badgeActive: "bg-white/20 text-white",
+                    active:
+                      "bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/30 ring-1 ring-emerald-400/30",
+                    idle:
+                      "group border border-transparent bg-white text-ink-muted hover:border-emerald-200/80 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 hover:text-emerald-700 hover:shadow-md hover:shadow-emerald-500/20 hover:-translate-y-0.5",
+                    badge: "bg-emerald-100 text-emerald-700 transition-colors duration-300 group-hover:bg-emerald-200 group-hover:text-emerald-800",
+                    badgeActive: "bg-white/25 text-white",
+                  },
+                  {
+                    id: "losses" as TabId,
+                    label: "Losses",
+                    count: lossItemCount,
+                    active:
+                      "bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-lg shadow-red-500/30 ring-1 ring-red-400/30",
+                    idle:
+                      "group border border-transparent bg-white text-ink-muted hover:border-rose-200/80 hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 hover:text-red-700 hover:shadow-md hover:shadow-red-500/20 hover:-translate-y-0.5",
+                    badge:
+                      lossItemCount > 0
+                        ? "bg-red-100 text-red-800 transition-colors duration-300 group-hover:bg-red-200 group-hover:text-red-900"
+                        : "bg-slate-100 text-slate-600 transition-colors duration-300 group-hover:bg-rose-100 group-hover:text-rose-800",
+                    badgeActive: "bg-white/25 text-white",
                   },
                 ] as const
               ).map((tab) => (
@@ -206,7 +235,7 @@ export default function App() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex flex-1 items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-base font-bold transition-all duration-300 ${
+                  className={`flex flex-1 items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-base font-bold transition-all duration-300 ease-out ${
                     activeTab === tab.id ? tab.active : tab.idle
                   }`}
                 >
@@ -222,10 +251,54 @@ export default function App() {
               ))}
             </div>
 
-            {activeTab === "orders" && result.orders.length > 0 && (
-              <OrdersTable orders={result.orders} />
+            {hasWoltSummary && (
+              <div className="modern-panel flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div>
+                  <p className="text-sm font-bold text-ink">Per-item net income options</p>
+                  <p className="mt-0.5 text-xs font-medium text-ink-faint">
+                    Default rows use distribution commission only. Ad campaigns are split by
+                    campaign date window (pro-rata by order value).
+                  </p>
+                </div>
+                <label
+                  className={`flex shrink-0 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
+                    canAllocateAds
+                      ? "border-sky-200 bg-sky-50/80"
+                      : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                    checked={includeAllocatedAdCost}
+                    disabled={!canAllocateAds}
+                    onChange={(event) => setIncludeAllocatedAdCost(event.target.checked)}
+                  />
+                  <span className="text-sm font-bold text-ink">
+                    Include allocated ad cost
+                  </span>
+                </label>
+              </div>
             )}
-            {activeTab === "products" && <ResultsTable rows={result.rows} />}
+
+            {activeTab === "orders" && result.orders.length > 0 && (
+              <OrdersTable
+                orders={result.orders}
+                includeAllocatedAdCost={includeAllocatedAdCost}
+              />
+            )}
+            {activeTab === "products" && (
+              <ResultsTable
+                rows={result.rows}
+                includeAllocatedAdCost={includeAllocatedAdCost}
+              />
+            )}
+            {activeTab === "losses" && result.orders.length > 0 && (
+              <LossItemsTable
+                orders={result.orders}
+                includeAllocatedAdCost={includeAllocatedAdCost}
+              />
+            )}
           </>
         )}
       </main>
