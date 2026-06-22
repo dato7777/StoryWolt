@@ -3,6 +3,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useI18n } from "../i18n/LanguageContext";
 import { SearchField } from "./SearchField";
 import { collectLossItems, type LossLineItem } from "../utils/collectLossItems";
 import type { CalculatedOrder } from "../types";
@@ -45,6 +46,7 @@ export function LossItemsTable({
   orders,
   includeAllocatedAdCost = false,
 }: LossItemsTableProps) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
 
   const lossItems = useMemo(
@@ -66,10 +68,10 @@ export function LossItemsTable({
   if (lossItems.length === 0) {
     return (
       <section className="modern-panel overflow-hidden border-emerald-200 bg-emerald-50/50 px-5 py-10 text-center">
-        <h2 className="text-lg font-bold text-emerald-900 sm:text-xl">No losses or break-even lines</h2>
+        <h2 className="text-lg font-bold text-emerald-900 sm:text-xl">{t("lossesTable.emptyTitle")}</h2>
         <p className="mt-2 text-sm font-medium text-emerald-800/80">
-          Every delivered order line has positive net income
-          {includeAllocatedAdCost ? " (after allocated ad cost)" : ""}.
+          {t("lossesTable.emptyHint")}
+          {includeAllocatedAdCost ? t("lossesTable.emptyHintAds") : ""}.
         </p>
       </section>
     );
@@ -79,23 +81,25 @@ export function LossItemsTable({
     <section className="modern-panel overflow-hidden border-red-200/80 bg-red-50/20">
       <div className="border-b border-red-200/80 px-4 py-4 sm:px-6">
         <h2 className="text-lg font-bold text-red-950 sm:text-xl">
-          Losses &amp; break-even ({lossItems.length})
+          {t("lossesTable.title", { count: lossItems.length })}
         </h2>
         <p className="mt-1 text-sm font-medium text-red-900/80">
-          Order lines with net income ≤ ₪0
-          {includeAllocatedAdCost ? " · includes allocated ad cost" : ""}
+          {t("lossesTable.hint")}
+          {includeAllocatedAdCost ? t("lossesTable.hintWithAds") : ""}
           {" · "}
-          <span className="font-bold text-red-800">{lossCount} loss</span>
+          <span className="font-bold text-red-800">{t("lossesTable.lossCount", { count: lossCount })}</span>
           {breakEvenCount > 0 && (
             <>
-              , <span className="font-bold text-amber-800">{breakEvenCount} break-even</span>
+              ,{" "}
+              <span className="font-bold text-amber-800">
+                {t("lossesTable.breakEvenCount", { count: breakEvenCount })}
+              </span>
             </>
           )}
           {lossCount > 0 && (
             <>
               {" "}
-              · total loss{" "}
-              <span className="font-bold tabular-nums text-red-800">{formatIls(totalLoss)}</span>
+              {t("lossesTable.totalLoss", { amount: formatIls(totalLoss) })}
             </>
           )}
         </p>
@@ -104,30 +108,30 @@ export function LossItemsTable({
       <SearchField
         value={search}
         onChange={setSearch}
-        placeholder="Search order #, product, SKU…"
+        placeholder={t("lossesTable.search")}
         resultCount={filtered.length}
         totalCount={lossItems.length}
       />
 
       <div className="table-scroll max-h-[min(32rem,60vh)]">
-        <table className="w-full table-fixed text-left">
+        <table className="w-full table-fixed text-start">
           <thead>
             <tr>
-              <th className="table-sticky-th w-[14%]">Order</th>
-              <th className="table-sticky-th hidden w-[10%] sm:table-cell">Date</th>
-              <th className="table-sticky-th w-[26%]">Product</th>
-              <th className="table-sticky-th hidden w-[12%] md:table-cell">Menu/unit (incl. VAT)</th>
-              <th className="table-sticky-th hidden w-[12%] lg:table-cell">Sold/unit (incl. VAT)</th>
-              <th className="table-sticky-th hidden w-[12%] md:table-cell">Sold total (incl. VAT)</th>
-              <th className="table-sticky-th w-[14%]">Net total (incl. VAT)</th>
-              <th className="table-sticky-th w-[12%]">Status</th>
+              <th className="table-sticky-th w-[14%]">{t("fields.order")}</th>
+              <th className="table-sticky-th hidden w-[10%] sm:table-cell">{t("fields.date")}</th>
+              <th className="table-sticky-th w-[26%]">{t("fields.product")}</th>
+              <th className="table-sticky-th hidden w-[12%] md:table-cell">{t("fields.menuUnit")}</th>
+              <th className="table-sticky-th hidden w-[12%] lg:table-cell">{t("fields.soldUnit")}</th>
+              <th className="table-sticky-th hidden w-[12%] md:table-cell">{t("fields.soldTotalInclVat")}</th>
+              <th className="table-sticky-th w-[14%]">{t("fields.netTotalShort")}</th>
+              <th className="table-sticky-th w-[12%]">{t("fields.status")}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center text-sm font-medium text-ink-muted">
-                  No lines match your search.
+                  {t("lossesTable.noResults")}
                 </td>
               </tr>
             )}
@@ -142,7 +146,7 @@ export function LossItemsTable({
                 </td>
                 <td className="table-cell-wrap" title={item.item_name}>
                   {item.item_name}
-                  <span className="ml-1 text-xs font-medium text-ink-faint">×{item.quantity}</span>
+                  <span className="ms-1 text-xs font-medium text-ink-faint">×{item.quantity}</span>
                 </td>
                 <td className="table-cell hidden tabular-nums text-ink-muted md:table-cell">
                   {formatIls(item.menu_price_per_unit)}
@@ -168,7 +172,9 @@ export function LossItemsTable({
                         : "bg-amber-100 text-amber-950"
                     }`}
                   >
-                    {item.outcome === "loss" ? "Loss" : "Break-even"}
+                    {item.outcome === "loss"
+                      ? t("lossesTable.statusLoss")
+                      : t("lossesTable.statusBreakEven")}
                   </span>
                 </td>
               </tr>

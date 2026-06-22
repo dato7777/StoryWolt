@@ -1,7 +1,8 @@
 /**
- * Products from delivered orders with no commission % in offers_commission.xlsx.
+ * Products from delivered orders with no commission % in commission catalog.
  */
 
+import { useI18n } from "../i18n/LanguageContext";
 import type { MissingCommissionProduct } from "../types";
 
 interface MissingCommissionPanelProps {
@@ -16,17 +17,9 @@ function formatIls(value: number): string {
   }).format(value);
 }
 
-function statusLabel(status: string): string {
-  if (status === "missing_commission") {
-    return "In offers file — no commission %";
-  }
-  if (status === "not_found") {
-    return "Not in offers file";
-  }
-  return status;
-}
-
 export function MissingCommissionPanel({ products }: MissingCommissionPanelProps) {
+  const { t } = useI18n();
+
   if (products.length === 0) {
     return null;
   }
@@ -34,20 +27,26 @@ export function MissingCommissionPanel({ products }: MissingCommissionPanelProps
   const missingPct = products.filter((p) => p.status === "missing_commission").length;
   const notFound = products.filter((p) => p.status === "not_found").length;
 
+  function statusLabel(status: string): string {
+    if (status === "missing_commission") {
+      return t("missingCommission.inCatalogNoPct");
+    }
+    if (status === "not_found") {
+      return t("missingCommission.notInCatalog");
+    }
+    return status;
+  }
+
   return (
     <section className="modern-panel overflow-hidden border-amber-200 bg-amber-50/40">
       <div className="border-b border-amber-200/80 px-4 py-4 sm:px-6">
         <h2 className="text-lg font-bold text-amber-950 sm:text-xl">
-          Missing commission % ({products.length})
+          {t("missingCommission.title", { count: products.length })}
         </h2>
         <p className="mt-1 text-sm font-medium text-amber-900/80">
-          Sold in this period via orderNumbers.csv but no fee % from offers_commission.xlsx
-          {missingPct > 0 && notFound > 0 && (
-            <>
-              {" "}
-              — {missingPct} without %, {notFound} not in catalog
-            </>
-          )}
+          {t("missingCommission.body")}
+          {missingPct > 0 && notFound > 0 &&
+            t("missingCommission.bothIssues", { missing: missingPct, notFound })}
         </p>
       </div>
 
@@ -55,11 +54,11 @@ export function MissingCommissionPanel({ products }: MissingCommissionPanelProps
         <table className="w-full table-fixed text-left">
           <thead>
             <tr>
-              <th className="table-sticky-th w-[40%]">Product name</th>
-              <th className="table-sticky-th hidden w-[18%] sm:table-cell">SKU</th>
-              <th className="table-sticky-th w-12 text-center">Qty</th>
-              <th className="table-sticky-th hidden w-[14%] md:table-cell">Sold</th>
-              <th className="table-sticky-th w-[28%] sm:w-[22%]">Issue</th>
+              <th className="table-sticky-th w-[40%]">{t("missingCommission.productName")}</th>
+              <th className="table-sticky-th hidden w-[18%] sm:table-cell">{t("fields.sku")}</th>
+              <th className="table-sticky-th w-12 text-center">{t("fields.qty")}</th>
+              <th className="table-sticky-th hidden w-[14%] md:table-cell">{t("fields.sold")}</th>
+              <th className="table-sticky-th w-[28%] sm:w-[22%]">{t("fields.issue")}</th>
             </tr>
           </thead>
           <tbody>

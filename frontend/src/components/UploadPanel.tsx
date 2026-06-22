@@ -3,6 +3,7 @@
  */
 
 import type { ChangeEvent } from "react";
+import { useI18n } from "../i18n/LanguageContext";
 import type { UploadFiles } from "../types";
 
 interface UploadPanelProps {
@@ -19,6 +20,9 @@ function FileSlot({
   fileName,
   disabled,
   onChange,
+  readyLabel,
+  dropLabel,
+  csvAlert,
 }: {
   label: string;
   hint: string;
@@ -26,12 +30,15 @@ function FileSlot({
   fileName: string | null;
   disabled: boolean;
   onChange: (file: File) => void;
+  readyLabel: string;
+  dropLabel: string;
+  csvAlert: string;
 }) {
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      alert("Please upload a CSV file exported from Wolt.");
+      alert(csvAlert);
       return;
     }
     onChange(file);
@@ -54,7 +61,7 @@ function FileSlot({
         </span>
         {hasFile && (
           <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-            Ready
+            {readyLabel}
           </span>
         )}
       </div>
@@ -64,7 +71,7 @@ function FileSlot({
           hasFile ? "text-emerald-800" : "text-ink-faint"
         }`}
       >
-        {fileName ?? "Drop or click to select CSV"}
+        {fileName ?? dropLabel}
       </span>
       <input
         type="file"
@@ -83,6 +90,7 @@ export function UploadPanel({
   onCalculate,
   loading,
 }: UploadPanelProps) {
+  const { t } = useI18n();
   const canCalculate = Boolean(files.orderNumbers) && !loading;
   const fileCount = [files.orderNumbers, files.paymentDetails].filter(Boolean).length;
 
@@ -91,11 +99,11 @@ export function UploadPanel({
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">
-            Step 1
+            {t("upload.step")}
           </p>
-          <h2 className="mt-1 text-xl font-bold text-ink">Upload Wolt exports</h2>
+          <h2 className="mt-1 text-xl font-bold text-ink">{t("upload.title")}</h2>
           <p className="mt-1 text-sm font-medium text-ink-faint">
-            {fileCount} file{fileCount === 1 ? "" : "s"} selected
+            {t("upload.filesSelected", { count: fileCount })}
           </p>
         </div>
 
@@ -106,29 +114,33 @@ export function UploadPanel({
           className="group relative shrink-0 overflow-hidden rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 px-8 py-3.5 text-base font-bold text-white shadow-glow transition hover:scale-[1.02] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
         >
           <span className="relative z-10">
-            {loading ? "Calculating…" : "Calculate net income"}
+            {loading ? t("upload.calculating") : t("upload.calculate")}
           </span>
-          {loading && (
-            <span className="absolute inset-0 animate-pulse bg-white/10" />
-          )}
+          {loading && <span className="absolute inset-0 animate-pulse bg-white/10" />}
         </button>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <FileSlot
           label="orderNumbers.csv"
-          hint="Required · delivered orders"
+          hint={t("upload.orderNumbersHint")}
           required
           fileName={files.orderNumbers?.name ?? null}
           disabled={loading}
           onChange={(file) => onFilesChange({ ...files, orderNumbers: file })}
+          readyLabel={t("upload.ready")}
+          dropLabel={t("upload.dropCsv")}
+          csvAlert={t("upload.csvOnly")}
         />
         <FileSlot
           label="standardSummary.csv"
-          hint="Optional · Wolt payout summary (Financial snapshot)"
+          hint={t("upload.summaryHint")}
           fileName={files.paymentDetails?.name ?? null}
           disabled={loading}
           onChange={(file) => onFilesChange({ ...files, paymentDetails: file })}
+          readyLabel={t("upload.ready")}
+          dropLabel={t("upload.dropCsv")}
+          csvAlert={t("upload.csvOnly")}
         />
       </div>
     </section>

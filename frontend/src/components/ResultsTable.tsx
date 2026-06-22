@@ -3,6 +3,7 @@
  */
 
 import { Fragment, useMemo, useState } from "react";
+import { useI18n } from "../i18n/LanguageContext";
 import { SearchField } from "./SearchField";
 import type { CalculatedRow } from "../types";
 import { rowDisplayNetIncome } from "../utils/netIncomeDisplay";
@@ -21,6 +22,13 @@ function formatIls(value: number | undefined | null): string {
   }).format(value);
 }
 
+function statusLabel(status: string, t: (key: string) => string): string {
+  if (status === "ok") return t("fields.statusOk");
+  if (status === "missing_commission") return t("fields.statusMissingCommission");
+  if (status === "not_found") return t("fields.statusNotFound");
+  return status;
+}
+
 function ProductDetails({
   row,
   includeAllocatedAdCost,
@@ -28,40 +36,41 @@ function ProductDetails({
   row: CalculatedRow;
   includeAllocatedAdCost: boolean;
 }) {
+  const { t } = useI18n();
   const displayNet = rowDisplayNetIncome(row, includeAllocatedAdCost);
   const displayNetPerItem = rowDisplayNetIncome(row, includeAllocatedAdCost, true);
   const tiles = [
-    { label: "SKU", value: row.merchant_sku || "—", plain: true },
-    { label: "Wolt menu price per unit (incl. VAT)", value: formatIls(row.list_price), plain: false },
+    { label: t("fields.sku"), value: row.merchant_sku || "—", plain: true },
+    { label: t("fields.menuPriceUnit"), value: formatIls(row.list_price), plain: false },
     {
-      label: "Actual sold total incl. VAT (fee base)",
+      label: t("fields.actualSoldFeeBase"),
       value: formatIls(row.sold_total ?? row.gross_total),
       plain: false,
     },
-    { label: "Fee %", value: row.commission_percent ?? "—", plain: true },
-    { label: "Wolt fee pre-VAT", value: formatIls(row.commission_before_vat), plain: false },
+    { label: t("fields.feePercent"), value: row.commission_percent ?? "—", plain: true },
+    { label: t("fields.feePreVat"), value: formatIls(row.commission_before_vat), plain: false },
     {
-      label: "Wolt fee totally incl. VAT (×1.18)",
+      label: t("fields.feeTotalInclVat"),
       value: formatIls(row.commission_with_vat),
       tone: "text-orange-800",
     },
     {
-      label: "Wolt fee per item incl. VAT (×1.18)",
+      label: t("fields.feePerItemInclVat"),
       value: formatIls(row.commission_with_vat_per_item ?? 0),
       tone: "text-orange-700",
     },
-    { label: "Self cost (incl. VAT)", value: formatIls(row.product_self_cost ?? 0), tone: "text-violet-800" },
+    { label: t("fields.selfCost"), value: formatIls(row.product_self_cost ?? 0), tone: "text-violet-800" },
   ];
   if (includeAllocatedAdCost && (row.allocated_ad_cost ?? 0) > 0) {
     tiles.push({
-      label: "Allocated ad cost (incl. VAT)",
+      label: t("fields.allocatedAd"),
       value: formatIls(row.allocated_ad_cost),
       tone: "text-sky-800",
     });
   }
   tiles.push(
-    { label: "Net income totally (incl. VAT)", value: formatIls(displayNet), tone: "text-emerald-800" },
-    { label: "Net income per item (incl. VAT)", value: formatIls(displayNetPerItem), tone: "text-emerald-700" },
+    { label: t("fields.netTotal"), value: formatIls(displayNet), tone: "text-emerald-800" },
+    { label: t("fields.netPerItem"), value: formatIls(displayNetPerItem), tone: "text-emerald-700" },
   );
 
   return (
@@ -75,7 +84,7 @@ function ProductDetails({
       {row.list_total != null &&
         Math.abs(row.list_total - (row.sold_total ?? row.gross_total)) > 0.01 && (
         <div className="detail-tile col-span-2 sm:col-span-3 lg:col-span-4">
-          <p className="detail-tile-label">Wolt menu line value was (incl. VAT)</p>
+          <p className="detail-tile-label">{t("fields.menuLineWas")}</p>
           <p className="detail-tile-value text-ink-muted">{formatIls(row.list_total)}</p>
         </div>
       )}
@@ -87,6 +96,7 @@ export function ResultsTable({
   rows,
   includeAllocatedAdCost = false,
 }: ResultsTableProps) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -112,39 +122,39 @@ export function ResultsTable({
   return (
     <section className="modern-panel overflow-hidden">
       <div className="border-b border-slate-200/80 px-4 py-3 sm:px-6 sm:py-4">
-        <h2 className="text-lg font-bold text-ink sm:text-xl">Per-item net income</h2>
+        <h2 className="text-lg font-bold text-ink sm:text-xl">{t("productsTable.title")}</h2>
         <p className="mt-0.5 text-xs font-medium text-ink-faint sm:text-sm">
-          Tap a row for full fee &amp; cost breakdown
-          {includeAllocatedAdCost ? " · ad cost deducted from net" : ""}
+          {t("productsTable.hint")}
+          {includeAllocatedAdCost ? t("productsTable.hintWithAds") : ""}
         </p>
       </div>
 
       <SearchField
         value={search}
         onChange={setSearch}
-        placeholder="Search product name or SKU…"
+        placeholder={t("productsTable.search")}
         resultCount={filteredRows.length}
         totalCount={rows.length}
       />
 
       <div className="table-scroll">
-        <table className="w-full table-fixed text-left">
+        <table className="w-full table-fixed text-start">
           <thead>
             <tr>
               <th className="table-sticky-th w-8" />
-              <th className="table-sticky-th w-[38%] sm:w-[32%]">Product</th>
-              <th className="table-sticky-th w-10 text-center">Qty</th>
-              <th className="table-sticky-th hidden sm:table-cell">Sold (incl. VAT)</th>
-              <th className="table-sticky-th">Net total (incl. VAT)</th>
-              <th className="table-sticky-th hidden md:table-cell">Net/item (incl. VAT)</th>
-              <th className="table-sticky-th hidden lg:table-cell w-16">Status</th>
+              <th className="table-sticky-th w-[38%] sm:w-[32%]">{t("fields.product")}</th>
+              <th className="table-sticky-th w-10 text-center">{t("fields.qty")}</th>
+              <th className="table-sticky-th hidden sm:table-cell">{t("fields.soldInclVat")}</th>
+              <th className="table-sticky-th">{t("fields.netTotalShort")}</th>
+              <th className="table-sticky-th hidden md:table-cell">{t("fields.netPerItemShort")}</th>
+              <th className="table-sticky-th hidden lg:table-cell w-16">{t("fields.status")}</th>
             </tr>
           </thead>
           <tbody>
             {filteredRows.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-sm font-medium text-ink-muted">
-                  No products match your search.
+                  {t("productsTable.noResults")}
                 </td>
               </tr>
             )}
@@ -153,6 +163,7 @@ export function ResultsTable({
               const isOpen = expanded.has(key);
               const displayNet = rowDisplayNetIncome(row, includeAllocatedAdCost);
               const displayNetPerItem = rowDisplayNetIncome(row, includeAllocatedAdCost, true);
+              const label = statusLabel(row.status, t);
               return (
                 <Fragment key={key}>
                   <tr
@@ -181,7 +192,7 @@ export function ResultsTable({
                             : "bg-amber-100 text-amber-900"
                         }`}
                       >
-                        {row.status}
+                        {label}
                       </span>
                     </td>
                   </tr>
@@ -193,7 +204,7 @@ export function ResultsTable({
                           includeAllocatedAdCost={includeAllocatedAdCost}
                         />
                         <div className="flex items-center justify-between border-t border-slate-200/60 px-4 py-2 lg:hidden">
-                          <span className="text-xs font-bold text-ink-faint">Status</span>
+                          <span className="text-xs font-bold text-ink-faint">{t("fields.status")}</span>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                               row.status === "ok"
@@ -201,7 +212,7 @@ export function ResultsTable({
                                 : "bg-amber-100 text-amber-900"
                             }`}
                           >
-                            {row.status}
+                            {label}
                           </span>
                         </div>
                       </td>

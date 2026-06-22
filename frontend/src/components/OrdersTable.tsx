@@ -3,6 +3,7 @@
  */
 
 import { Fragment, useMemo, useState } from "react";
+import { useI18n } from "../i18n/LanguageContext";
 import { SearchField } from "./SearchField";
 import type { CalculatedOrder, OrderLineItem } from "../types";
 import { lineDisplayNetIncome, orderDisplayNetIncome } from "../utils/netIncomeDisplay";
@@ -49,6 +50,7 @@ function ItemDetails({
   item: OrderLineItem;
   includeAllocatedAdCost: boolean;
 }) {
+  const { t } = useI18n();
   const displayNet = lineDisplayNetIncome(item, includeAllocatedAdCost);
   const displayNetPerItem = lineDisplayNetIncome(item, includeAllocatedAdCost, true);
   const quantity = item.quantity > 0 ? item.quantity : 1;
@@ -57,26 +59,26 @@ function ItemDetails({
     item.list_price != null ? Math.round(item.list_price * item.quantity * 100) / 100 : null;
 
   const tiles = [
-    { label: "SKU", value: item.merchant_sku || "—" },
+    { label: t("fields.sku"), value: item.merchant_sku || "—" },
     {
-      label: "Wolt menu price per unit (incl. VAT)",
+      label: t("fields.menuPriceUnit"),
       value: formatIls(item.list_price),
       tone: item.list_price != null ? "text-ink-muted" : undefined,
     },
     {
-      label: "Actual sold price per unit (incl. VAT)",
+      label: t("fields.actualPriceUnit"),
       value: formatIls(actualUnitPrice),
     },
   ];
   if (menuLineTotal != null) {
     tiles.push({
-      label: "Wolt menu line value (incl. VAT)",
+      label: t("fields.menuLineValue"),
       value: formatIls(menuLineTotal),
       tone: "text-ink-muted",
     });
   }
   tiles.push({
-    label: "Actual sold line total (incl. VAT)",
+    label: t("fields.actualLineTotal"),
     value: formatIls(item.line_gross),
   });
   if (
@@ -84,35 +86,35 @@ function ItemDetails({
     Math.abs(menuLineTotal - item.line_gross) > 0.01
   ) {
     tiles.push({
-      label: "Discount vs menu (incl. VAT)",
+      label: t("fields.discountVsMenu"),
       value: formatIls(item.line_gross - menuLineTotal),
       tone: item.line_gross < menuLineTotal ? "text-violet-800" : "text-ink",
     });
   }
   tiles.push(
-    { label: "Fee %", value: String(item.commission_percent ?? "—") },
+    { label: t("fields.feePercent"), value: String(item.commission_percent ?? "—") },
     {
-      label: "Wolt fee totally incl. VAT (×1.18)",
+      label: t("fields.feeTotalInclVat"),
       value: formatIls(item.commission_with_vat),
       tone: "text-orange-800",
     },
     {
-      label: "Wolt fee per item incl. VAT (×1.18)",
+      label: t("fields.feePerItemInclVat"),
       value: formatIls(item.commission_with_vat_per_item ?? 0),
       tone: "text-orange-700",
     },
-    { label: "Self cost (incl. VAT)", value: formatIls(item.product_self_cost ?? 0), tone: "text-violet-800" },
+    { label: t("fields.selfCost"), value: formatIls(item.product_self_cost ?? 0), tone: "text-violet-800" },
   );
   if (includeAllocatedAdCost && (item.allocated_ad_cost ?? 0) > 0) {
     tiles.push({
-      label: "Allocated ad cost (incl. VAT)",
+      label: t("fields.allocatedAd"),
       value: formatIls(item.allocated_ad_cost),
       tone: "text-sky-800",
     });
   }
   tiles.push(
-    { label: "Net income totally (incl. VAT)", value: formatIls(displayNet), tone: "text-emerald-800" },
-    { label: "Net income per item (incl. VAT)", value: formatIls(displayNetPerItem), tone: "text-emerald-700" },
+    { label: t("fields.netTotal"), value: formatIls(displayNet), tone: "text-emerald-800" },
+    { label: t("fields.netPerItem"), value: formatIls(displayNetPerItem), tone: "text-emerald-700" },
   );
 
   return (
@@ -137,6 +139,7 @@ export function OrdersTable({
   orders,
   includeAllocatedAdCost = false,
 }: OrdersTableProps) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
@@ -157,31 +160,31 @@ export function OrdersTable({
   return (
     <section className="modern-panel overflow-hidden">
       <div className="border-b border-slate-200/80 px-4 py-3 sm:px-6 sm:py-4">
-        <h2 className="text-lg font-bold text-ink sm:text-xl">Net income per order</h2>
+        <h2 className="text-lg font-bold text-ink sm:text-xl">{t("ordersTable.title")}</h2>
         <p className="mt-0.5 text-xs font-medium text-ink-faint sm:text-sm">
-          Oldest first · tap a row to expand item breakdown
-          {includeAllocatedAdCost ? " · ad cost deducted from net" : ""}
+          {t("ordersTable.hint")}
+          {includeAllocatedAdCost ? t("ordersTable.hintWithAds") : ""}
         </p>
       </div>
 
       <SearchField
         value={search}
         onChange={setSearch}
-        placeholder="Search order #, date, or product name…"
+        placeholder={t("ordersTable.search")}
         resultCount={filteredOrders.length}
         totalCount={orders.length}
       />
 
       <div className="table-scroll">
-        <table className="w-full table-fixed text-left">
+        <table className="w-full table-fixed text-start">
           <thead>
             <tr>
               <th className="table-sticky-th w-8" />
-              <th className="table-sticky-th w-[28%] sm:w-[22%]">Order</th>
-              <th className="table-sticky-th hidden sm:table-cell">Date</th>
-              <th className="table-sticky-th hidden md:table-cell">Sold total (incl. VAT)</th>
-              <th className="table-sticky-th hidden lg:table-cell">Fee Σ incl. VAT</th>
-              <th className="table-sticky-th">Net total (incl. VAT)</th>
+              <th className="table-sticky-th w-[28%] sm:w-[22%]">{t("fields.order")}</th>
+              <th className="table-sticky-th hidden sm:table-cell">{t("fields.date")}</th>
+              <th className="table-sticky-th hidden md:table-cell">{t("fields.soldTotalInclVat")}</th>
+              <th className="table-sticky-th hidden lg:table-cell">{t("fields.feeSumInclVat")}</th>
+              <th className="table-sticky-th">{t("fields.netTotalShort")}</th>
               <th className="table-sticky-th hidden xl:table-cell w-12 text-center">#</th>
             </tr>
           </thead>
@@ -189,7 +192,7 @@ export function OrdersTable({
             {filteredOrders.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-sm font-medium text-ink-muted">
-                  No orders match your search.
+                  {t("ordersTable.noResults")}
                 </td>
               </tr>
             )}
@@ -238,26 +241,26 @@ export function OrdersTable({
                       <td colSpan={7} className="border-t border-slate-200/60 px-3 py-3 sm:px-4 sm:py-4">
                         <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                           {[
-                            { label: "Actual sold total (incl. VAT)", value: formatIls(order.order_gross) },
+                            { label: t("fields.actualSoldTotal"), value: formatIls(order.order_gross) },
                             {
-                              label: "Wolt fee totally incl. VAT (×1.18)",
+                              label: t("fields.feeTotalInclVat"),
                               value: formatIls(order.commission_with_vat),
                               tone: "text-orange-800",
                             },
                             {
-                              label: "Self cost total (incl. VAT)",
+                              label: t("fields.selfCostTotal"),
                               value: formatIls(selfCostTotal),
                               tone: "text-violet-800",
                             },
                             ...(includeAllocatedAdCost && (order.allocated_ad_cost ?? 0) > 0
                               ? [{
-                                  label: "Allocated ad cost (incl. VAT)",
+                                  label: t("fields.allocatedAd"),
                                   value: formatIls(order.allocated_ad_cost),
                                   tone: "text-sky-800",
                                 }]
                               : []),
                             {
-                              label: "Net income totally (incl. VAT)",
+                              label: t("fields.netTotal"),
                               value: formatIls(displayNet),
                               tone: "text-emerald-800",
                             },

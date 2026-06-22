@@ -10,12 +10,15 @@ import { OrdersTable } from "./components/OrdersTable";
 import { ResultsTable } from "./components/ResultsTable";
 import { TimelinePicker } from "./components/TimelinePicker";
 import { DeleteTimelineConfirmDialog } from "./components/DeleteTimelineConfirmDialog";
+import { LanguageToggle } from "./components/LanguageToggle";
 import { UploadPanel } from "./components/UploadPanel";
+import { WelcomeSplash } from "./components/WelcomeSplash";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
+import { useI18n } from "./i18n/LanguageContext";
 import type { CalculationResponse, ReportTimeline, UploadFiles } from "./types";
 
 type TabId = "orders" | "products" | "losses";
-type AuthState = "checking" | "guest" | "authenticated";
+type AuthState = "checking" | "guest" | "welcoming" | "authenticated";
 
 /** Smooth vertical scroll only — avoids horizontal page drift from scrollIntoView inline. */
 function scrollToElementVertically(
@@ -36,6 +39,7 @@ function scrollToElementVertically(
 }
 
 export default function App() {
+  const { t } = useI18n();
   const [authState, setAuthState] = useState<AuthState>(
     hasAuthSession() ? "checking" : "guest",
   );
@@ -268,13 +272,17 @@ export default function App() {
   if (authState === "checking") {
     return (
       <div className="page-shell flex min-h-screen items-center justify-center">
-        <p className="text-base font-bold text-ink-muted">Checking session…</p>
+        <p className="text-base font-bold text-ink-muted">{t("app.checkingSession")}</p>
       </div>
     );
   }
 
   if (authState === "guest") {
-    return <LoginPage onSuccess={() => setAuthState("authenticated")} />;
+    return <LoginPage onSuccess={() => setAuthState("welcoming")} />;
+  }
+
+  if (authState === "welcoming") {
+    return <WelcomeSplash onComplete={() => setAuthState("authenticated")} />;
   }
 
   const adminName = getAuthUsername() ?? "admin";
@@ -303,15 +311,16 @@ export default function App() {
               </span>
             </div>
             <p className="mt-2 text-sm font-bold tracking-wide text-ink-muted sm:text-base">
-              Wolt Net Income Dashboard
+              {t("app.dashboardTitle")}
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <LanguageToggle />
             {result && (
               <div className="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 sm:flex sm:px-4 sm:py-2">
                 <span className="h-2 w-2 animate-shimmer rounded-full bg-emerald-500" />
                 <span className="text-sm font-bold text-emerald-800">
-                  {activeTimelineId ? "Saved report" : "Live results"}
+                  {activeTimelineId ? t("app.savedReport") : t("app.liveResults")}
                 </span>
               </div>
             )}
@@ -323,7 +332,7 @@ export default function App() {
               onClick={handleLogout}
               className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-muted transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 sm:px-4 sm:py-2 sm:text-sm"
             >
-              Sign out
+              {t("app.signOut")}
             </button>
           </div>
         </div>
@@ -373,15 +382,13 @@ export default function App() {
 
             {(result.summary.rejected_order_count ?? 0) > 0 && (
               <div className="modern-panel border-violet-200 bg-violet-50/80 px-5 py-4 font-medium text-violet-900">
-                Excluded <strong>{result.summary.rejected_order_count}</strong> rejected order(s)
-                totaling{" "}
-                <strong>
-                  {new Intl.NumberFormat("he-IL", {
+                {t("app.rejectedExcluded", {
+                  count: result.summary.rejected_order_count ?? 0,
+                  amount: new Intl.NumberFormat("he-IL", {
                     style: "currency",
                     currency: "ILS",
-                  }).format(result.summary.rejected_order_total ?? 0)}
-                </strong>{" "}
-                — not included in commission or net income (matches Wolt invoice).
+                  }).format(result.summary.rejected_order_total ?? 0),
+                })}
               </div>
             )}
 
@@ -409,7 +416,7 @@ export default function App() {
                 [
                   {
                     id: "orders" as TabId,
-                    label: "Orders",
+                    label: t("app.tabOrders"),
                     count: result.orders.length,
                     active:
                       "bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-indigo-400/30",
@@ -420,7 +427,7 @@ export default function App() {
                   },
                   {
                     id: "products" as TabId,
-                    label: "Products",
+                    label: t("app.tabProducts"),
                     count: result.rows.length,
                     active:
                       "bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/30 ring-1 ring-emerald-400/30",
@@ -431,7 +438,7 @@ export default function App() {
                   },
                   {
                     id: "losses" as TabId,
-                    label: "Losses",
+                    label: t("app.tabLosses"),
                     count: lossItemCount,
                     active:
                       "bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-lg shadow-red-500/30 ring-1 ring-red-400/30",
@@ -463,7 +470,7 @@ export default function App() {
                       aria-hidden
                     >
                       <span className="rounded-full bg-red-600 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-lg shadow-red-500/40">
-                        Tap here
+                        {t("app.tapHere")}
                       </span>
                       <span className="mt-0.5 text-2xl leading-none text-red-600">↓</span>
                     </span>
@@ -484,10 +491,9 @@ export default function App() {
             {hasWoltSummary && (
               <div className="modern-panel flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div>
-                  <p className="text-sm font-bold text-ink">Per-item net income options</p>
+                  <p className="text-sm font-bold text-ink">{t("app.perItemOptions")}</p>
                   <p className="mt-0.5 text-xs font-medium text-ink-faint">
-                    Default rows use distribution commission only. Ad campaigns are split by
-                    campaign date window (pro-rata by order value).
+                    {t("app.perItemOptionsHint")}
                   </p>
                 </div>
                 <label
@@ -505,7 +511,7 @@ export default function App() {
                     onChange={(event) => setIncludeAllocatedAdCost(event.target.checked)}
                   />
                   <span className="text-sm font-bold text-ink">
-                    Include allocated ad cost
+                    {t("app.includeAdCost")}
                   </span>
                 </label>
               </div>

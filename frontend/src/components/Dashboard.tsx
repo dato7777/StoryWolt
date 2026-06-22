@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CountUpCurrency } from "./CountUpCurrency";
+import { useI18n } from "../i18n/LanguageContext";
 import type { CalculationSummary } from "../types";
 import { formatReportPeriod } from "../utils/formatReportPeriod";
 
@@ -118,11 +119,13 @@ function HeroCascadeCard({
   isCounting,
   settled,
   onCountComplete,
+  uploadLabel,
 }: {
   step: HeroStep;
   isCounting: boolean;
   settled: boolean;
   onCountComplete: () => void;
+  uploadLabel: string;
 }) {
   useEffect(() => {
     if (!isCounting) return;
@@ -160,7 +163,7 @@ function HeroCascadeCard({
             onComplete={isCounting ? onCountComplete : undefined}
           />
         ) : (
-          <span className="text-xl sm:text-2xl">Upload standardSummary.csv</span>
+          <span className="text-xl sm:text-2xl">{uploadLabel}</span>
         )}
       </p>
     </article>
@@ -170,9 +173,11 @@ function HeroCascadeCard({
 function MainHeroCascade({
   steps,
   onComplete,
+  uploadLabel,
 }: {
   steps: HeroStep[];
   onComplete?: () => void;
+  uploadLabel: string;
 }) {
   const [revealedIndex, setRevealedIndex] = useState(-1);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -239,6 +244,7 @@ function MainHeroCascade({
               isCounting={index === revealedIndex}
               settled={index < revealedIndex}
               onCountComplete={() => handleCountComplete(index)}
+              uploadLabel={uploadLabel}
             />
           </div>
         );
@@ -301,6 +307,7 @@ export function Dashboard({
   includeAllocatedAdCost = false,
   onHeroCascadeComplete,
 }: DashboardProps) {
+  const { t } = useI18n();
   const hasWoltSummary = summary.wolt_summary_gross_goods != null;
   const reportPeriod = formatReportPeriod(summary);
   const selfCost = summary.total_product_self_cost ?? 0;
@@ -344,25 +351,26 @@ export function Dashboard({
   const expenseRows = hasWoltSummary
     ? [
         adCampaigns > 0 && {
-          label: "Ad campaigns",
-          detail: includeAllocatedAdCost && adAllocated > 0
-            ? `${formatIls(adAllocated)} allocated to orders`
-            : "Not on order rows until toggle enabled",
+          label: t("dashboard.expenseAdCampaigns"),
+          detail:
+            includeAllocatedAdCost && adAllocated > 0
+              ? t("dashboard.expenseAdAllocated", { amount: formatIls(adAllocated) })
+              : t("dashboard.expenseAdNotOnRows"),
           value: adCampaigns,
         },
         otherFees > 0 && {
-          label: "Other Wolt fees",
-          detail: "Lateness, delivery discount, resends, VAT adj.",
+          label: t("dashboard.expenseOtherFees"),
+          detail: t("dashboard.expenseOtherDetail"),
           value: otherFees,
         },
         Math.abs(distributionGap) > 0.01 && {
-          label: "Distribution gap",
-          detail: "Invoice distribution vs order commission calc",
+          label: t("dashboard.expenseDistributionGap"),
+          detail: t("dashboard.expenseDistributionDetail"),
           value: distributionGap,
         },
         Math.abs(selfBillingNet) > 0.01 && {
-          label: "Self-billing",
-          detail: "Remunerations, merchant discounts, corrections",
+          label: t("dashboard.expenseSelfBilling"),
+          detail: t("dashboard.expenseSelfBillingDetail"),
           value: selfBillingNet,
         },
       ].filter(Boolean) as { label: string; detail: string; value: number }[]
@@ -372,10 +380,8 @@ export function Dashboard({
     {
       id: "goods-sold",
       stepNumber: 1,
-      label: "Goods sold (incl. VAT)",
-      hint: hasWoltSummary
-        ? "Total goods sold · Wolt standardSummary invoice"
-        : "Sum of delivered orders in this period",
+      label: t("dashboard.heroGoodsSold"),
+      hint: hasWoltSummary ? t("dashboard.heroGoodsHintInvoice") : t("dashboard.heroGoodsHintOrders"),
       value: soldTotal,
       enterAnimation: "enter-left",
       cardClass:
@@ -387,10 +393,8 @@ export function Dashboard({
     {
       id: "wolt-expenses",
       stepNumber: 2,
-      label: "Wolt fees + Expenses (incl. VAT)",
-      hint: hasWoltSummary
-        ? "WOLT INVOICE + self-billing adjustments"
-        : "Estimated distribution commission from orders × 1.18",
+      label: t("dashboard.heroWoltExpenses"),
+      hint: hasWoltSummary ? t("dashboard.heroWoltHintInvoice") : t("dashboard.heroWoltHintOrders"),
       value: woltExpenses,
       enterAnimation: "enter-right",
       cardClass:
@@ -402,8 +406,8 @@ export function Dashboard({
     {
       id: "payout",
       stepNumber: 3,
-      label: "Total Net Payout to Bank (incl. VAT)",
-      hint: "Goods sold − all Wolt fees & expenses → bank transfer",
+      label: t("dashboard.heroPayout"),
+      hint: t("dashboard.heroPayoutHint"),
       value: payout,
       enterAnimation: "enter-left",
       cardClass:
@@ -415,10 +419,8 @@ export function Dashboard({
     {
       id: "story-net",
       stepNumber: 4,
-      label: "Net income Story Phone (incl. VAT)",
-      hint: hasWoltSummary
-        ? "Payout to bank − product self cost (COGS)"
-        : "Sold − Wolt commission − product self cost",
+      label: t("dashboard.heroStoryNet"),
+      hint: hasWoltSummary ? t("dashboard.heroStoryHintInvoice") : t("dashboard.heroStoryHintOrders"),
       value: headlineNet,
       enterAnimation: "zoom-in",
       cardClass:
@@ -437,21 +439,21 @@ export function Dashboard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="analytics-pill border-indigo-200/80 bg-indigo-50 text-indigo-800">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
-                Analytics
+                {t("dashboard.analytics")}
               </span>
               {hasWoltSummary ? (
                 <span className="analytics-pill border-emerald-200/80 bg-emerald-50 text-emerald-800">
-                  Wolt invoice synced
+                  {t("dashboard.invoiceSynced")}
                 </span>
               ) : (
                 <span className="analytics-pill border-amber-200/80 bg-amber-50 text-amber-900">
-                  Orders only — upload standardSummary
+                  {t("dashboard.ordersOnly")}
                 </span>
               )}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
               <h2 className="font-display text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-                Financial overview
+                {t("dashboard.financialOverview")}
               </h2>
               {reportPeriod && (
                 <>
@@ -483,9 +485,7 @@ export function Dashboard({
               )}
             </div>
             <p className="mt-1.5 max-w-2xl text-sm font-medium text-ink-muted">
-              {hasWoltSummary
-                ? "Official Wolt payout reconciled with your delivered orders and product costs."
-                : "Commission estimate from orders. Upload standardSummary.csv for full Wolt expenses."}
+              {hasWoltSummary ? t("dashboard.subtitleInvoice") : t("dashboard.subtitleOrders")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -493,13 +493,13 @@ export function Dashboard({
               <span className="font-mono font-semibold text-ink">
                 {summary.delivered_order_count ?? 0}
               </span>{" "}
-              delivered
+              {t("dashboard.delivered")}
             </span>
             <span className="analytics-pill border-slate-200 bg-white text-ink-muted">
               <span className="font-mono font-semibold text-ink">
                 {summary.matched_count}
               </span>
-              <span className="text-ink-faint">/{summary.row_count}</span> matched
+              <span className="text-ink-faint">/{summary.row_count}</span> {t("dashboard.matched")}
             </span>
           </div>
         </div>
@@ -509,11 +509,15 @@ export function Dashboard({
         {/* 4 main KPI tabs — sequential cascade */}
         <div id="period-totals" className="analytics-section scroll-mt-24 border-indigo-100/80 bg-gradient-to-b from-white/90 to-indigo-50/20">
           <SectionHeader
-            title="Period totals"
-            subtitle="Each step appears after the previous amount finishes counting"
+            title={t("dashboard.periodTotals")}
+            subtitle={t("dashboard.periodTotalsHint")}
             accent="bg-gradient-to-b from-indigo-500 to-violet-400"
           />
-          <MainHeroCascade steps={heroSteps} onComplete={onHeroCascadeComplete} />
+          <MainHeroCascade
+            steps={heroSteps}
+            onComplete={onHeroCascadeComplete}
+            uploadLabel={t("common.uploadStandardSummary")}
+          />
         </div>
 
         {/* Money flow */}
@@ -523,35 +527,35 @@ export function Dashboard({
             className="analytics-section animate-fade-up opacity-0"
           >
             <SectionHeader
-              title="Money flow"
-              subtitle="How Wolt invoice totals connect — all amounts incl. VAT"
+              title={t("dashboard.moneyFlow")}
+              subtitle={t("dashboard.moneyFlowHint")}
               accent="bg-gradient-to-b from-slate-500 to-slate-300"
             />
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-3">
               <FlowStep
-                label="Goods sold"
+                label={t("dashboard.goodsSold")}
                 value={formatIls(soldTotal)}
                 pctWidth={100}
                 color="bg-slate-500"
               />
               <span className="hidden shrink-0 pb-1 text-slate-300 sm:block">−</span>
               <FlowStep
-                label="Wolt expenses"
+                label={t("dashboard.woltExpenses")}
                 value={formatIls(woltExpenses)}
                 pctWidth={pct(woltExpenses, soldTotal)}
                 color="bg-orange-500"
               />
               <span className="hidden shrink-0 pb-1 text-slate-300 sm:block">=</span>
               <FlowStep
-                label="Payout"
+                label={t("dashboard.payout")}
                 value={formatIls(payout)}
                 pctWidth={pct(payout ?? 0, soldTotal)}
                 color="bg-sky-500"
               />
             </div>
             <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t border-slate-100 pt-4 text-xs font-medium text-ink-faint">
-              <span>Self cost (your COGS): {formatIls(selfCost)}</span>
-              <span>Net after COGS: {formatIls(woltNetIncome)}</span>
+              <span>{t("dashboard.selfCostCogs", { amount: formatIls(selfCost) })}</span>
+              <span>{t("dashboard.netAfterCogs", { amount: formatIls(woltNetIncome) })}</span>
             </div>
           </div>
         )}
@@ -561,21 +565,21 @@ export function Dashboard({
           <div className="xl:col-span-4">
             <div className="analytics-section h-full">
               <SectionHeader
-                title="Revenue"
-                subtitle="What customers paid vs Wolt menu list value"
+                title={t("dashboard.revenue")}
+                subtitle={t("dashboard.revenueHint")}
                 accent="bg-gradient-to-b from-slate-600 to-slate-400"
               />
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <MetricTile
-                  label="Actual sold total"
-                  hint={hasWoltSummary ? "standardSummary · goods sold" : "Delivered orders sum"}
+                  label={t("dashboard.actualSoldTotal")}
+                  hint={hasWoltSummary ? t("dashboard.actualSoldHintInvoice") : t("dashboard.actualSoldHintOrders")}
                   value={soldTotal}
                   tone="neutral"
                   delay={160}
                 />
                 <MetricTile
-                  label="Wolt menu list value"
-                  hint="From offers_commission.xlsx"
+                  label={t("dashboard.menuListValue")}
+                  hint={t("dashboard.menuListHint")}
                   value={summary.total_list_value}
                   tone="neutral"
                   delay={200}
@@ -587,26 +591,29 @@ export function Dashboard({
           <div className="xl:col-span-4">
             <div className="analytics-section h-full">
               <SectionHeader
-                title="Wolt costs"
-                subtitle="Fees charged by Wolt for this period"
+                title={t("dashboard.woltCosts")}
+                subtitle={t("dashboard.woltCostsHint")}
                 accent="bg-gradient-to-b from-orange-500 to-amber-400"
               />
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 {hasWoltSummary ? (
                   <>
                     <MetricTile
-                      label="Expenses before VAT"
-                      hint="WOLT INVOICE + self-billing (net)"
+                      label={t("dashboard.expensesBeforeVat")}
+                      hint={t("dashboard.expensesBeforeVatHint")}
                       value={summary.wolt_summary_expenses_net}
                       tone="amber"
                       delay={240}
                     />
                     <MetricTile
-                      label="Expenses incl. VAT"
+                      label={t("dashboard.expensesInclVat")}
                       hint={
                         selfBillingNegative > 0
-                          ? `Invoice ${formatIls(woltInvoiceOnly)} + self-billing ${formatIls(selfBillingNegative)}`
-                          : "Distribution, ads, discounts…"
+                          ? t("dashboard.expensesInclVatHintSplit", {
+                              invoice: formatIls(woltInvoiceOnly),
+                              selfBilling: formatIls(selfBillingNegative),
+                            })
+                          : t("dashboard.expensesInclVatHint")
                       }
                       value={summary.wolt_summary_expenses_incl_vat}
                       tone="orange"
@@ -616,14 +623,14 @@ export function Dashboard({
                 ) : (
                   <>
                     <MetricTile
-                      label="Commission before VAT"
+                      label={t("dashboard.commissionBeforeVat")}
                       value={summary.total_commission_before_vat}
                       tone="amber"
                       delay={240}
                     />
                     <MetricTile
-                      label="Commission incl. VAT"
-                      hint="Distribution fee × 1.18"
+                      label={t("dashboard.commissionInclVat")}
+                      hint={t("dashboard.commissionInclVatHint")}
                       value={summary.total_commission_with_vat}
                       tone="orange"
                       delay={280}
@@ -631,8 +638,8 @@ export function Dashboard({
                   </>
                 )}
                 <MetricTile
-                  label="Product self cost"
-                  hint="COGS incl. VAT × quantity"
+                  label={t("dashboard.productSelfCost")}
+                  hint={t("dashboard.productSelfCostHint")}
                   value={selfCost}
                   tone="violet"
                   delay={320}
@@ -644,8 +651,8 @@ export function Dashboard({
           <div className="xl:col-span-4">
             <div className="analytics-section h-full">
               <SectionHeader
-                title="Per-item gap"
-                subtitle="Invoice costs not in default order/product net income"
+                title={t("dashboard.perItemGap")}
+                subtitle={t("dashboard.perItemGapHint")}
                 accent="bg-gradient-to-b from-rose-500 to-pink-400"
               />
               {hasWoltSummary && excludedDisplay != null ? (
@@ -654,14 +661,14 @@ export function Dashboard({
                     style={{ animationDelay: "360ms" }}
                     className="animate-fade-up opacity-0 rounded-xl border border-rose-200/80 bg-gradient-to-br from-rose-50/90 to-white p-4"
                   >
-                    <p className="analytics-label text-rose-700/80">Still excluded from rows</p>
+                    <p className="analytics-label text-rose-700/80">{t("dashboard.stillExcluded")}</p>
                     <p className="mt-2 font-mono text-3xl font-semibold tabular-nums text-rose-800">
                       <CountUpCurrency value={excludedDisplay} durationMs={1100} />
                     </p>
                     <p className="mt-2 text-xs font-medium leading-relaxed text-rose-900/70">
                       {includeAllocatedAdCost
-                        ? "After ad allocation on orders — other fees remain outside line net income."
-                        : "Enable ad allocation toggle to deduct campaign costs from order rows."}
+                        ? t("dashboard.excludedAfterAds")
+                        : t("dashboard.excludedEnableAds")}
                     </p>
                   </div>
                   {expenseRows.length > 0 && (
@@ -685,10 +692,8 @@ export function Dashboard({
                 </>
               ) : (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center">
-                  <p className="text-sm font-semibold text-ink-muted">No invoice gap analysis</p>
-                  <p className="mt-1 text-xs text-ink-faint">
-                    Upload standardSummary to compare Wolt invoice vs order calc.
-                  </p>
+                  <p className="text-sm font-semibold text-ink-muted">{t("dashboard.noGapTitle")}</p>
+                  <p className="mt-1 text-xs text-ink-faint">{t("dashboard.noGapHint")}</p>
                 </div>
               )}
             </div>
@@ -701,15 +706,15 @@ export function Dashboard({
           className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200/70 bg-slate-50/80 px-5 py-3.5 text-xs font-semibold text-ink-muted animate-fade-up opacity-0"
         >
           <span>
-            Data quality:{" "}
+            {t("dashboard.dataQuality")}{" "}
             <span className="font-mono text-ink">{summary.matched_count}</span>/
-            {summary.row_count} products matched
+            {summary.row_count} {t("dashboard.productsMatched")}
           </span>
           {(summary.rejected_order_count ?? 0) > 0 && (
             <>
               <span className="h-1 w-1 rounded-full bg-violet-300" />
               <span className="text-violet-700">
-                {summary.rejected_order_count} rejected orders excluded
+                {t("dashboard.rejectedExcluded", { count: summary.rejected_order_count ?? 0 })}
               </span>
             </>
           )}
@@ -717,14 +722,16 @@ export function Dashboard({
             <>
               <span className="h-1 w-1 rounded-full bg-amber-300" />
               <span className="text-amber-800">
-                Self-billing +{formatIls(selfBillingNegative)} on expenses
+                {t("dashboard.selfBillingOnExpenses", { amount: formatIls(selfBillingNegative) })}
               </span>
             </>
           )}
           {hasWoltSummary && includeAllocatedAdCost && adAllocated > 0 && (
             <>
               <span className="h-1 w-1 rounded-full bg-sky-300" />
-              <span className="text-sky-800">Ad cost on rows: {formatIls(adAllocated)}</span>
+              <span className="text-sky-800">
+                {t("dashboard.adCostOnRows", { amount: formatIls(adAllocated) })}
+              </span>
             </>
           )}
         </div>

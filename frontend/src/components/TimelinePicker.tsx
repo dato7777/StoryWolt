@@ -2,6 +2,7 @@
  * Saved Wolt period timelines — clickable cards to reload a full dashboard snapshot.
  */
 
+import { useI18n } from "../i18n/LanguageContext";
 import type { ReportTimeline } from "../types";
 
 interface TimelinePickerProps {
@@ -14,6 +15,10 @@ interface TimelinePickerProps {
   onSelect: (timelineId: string) => void;
   onDelete: (timelineId: string) => void;
 }
+
+const STAGGER_MS = 380;
+const ENTER_DURATION_MS = 1800;
+const SHIMMER_DURATION_MS = 2600;
 
 function formatIls(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
@@ -45,13 +50,12 @@ export function TimelinePicker({
   onSelect,
   onDelete,
 }: TimelinePickerProps) {
+  const { t } = useI18n();
+
   if (!databaseConfigured) {
     return (
       <section className="modern-panel border-dashed border-slate-300 bg-slate-50/60 px-5 py-4">
-        <p className="text-sm font-medium text-ink-muted">
-          Saved reports — connect Supabase (<code className="text-xs">DATABASE_URL</code> in{" "}
-          <code className="text-xs">.env</code>) to store timelines and commission catalog.
-        </p>
+        <p className="text-sm font-medium text-ink-muted">{t("timeline.connectDb")}</p>
       </section>
     );
   }
@@ -59,7 +63,7 @@ export function TimelinePicker({
   if (loading && timelines.length === 0) {
     return (
       <section className="modern-panel px-5 py-6">
-        <p className="text-sm font-semibold text-ink-muted">Loading saved reports…</p>
+        <p className="text-sm font-semibold text-ink-muted">{t("timeline.loading")}</p>
       </section>
     );
   }
@@ -68,11 +72,9 @@ export function TimelinePicker({
     return (
       <section className="modern-panel border-indigo-100 bg-indigo-50/30 px-5 py-5">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-600">
-          Saved reports
+          {t("timeline.emptyTitle")}
         </p>
-        <p className="mt-2 text-sm font-medium text-ink-muted">
-          Upload and calculate — your first period will appear here as a clickable timeline.
-        </p>
+        <p className="mt-2 text-sm font-medium text-ink-muted">{t("timeline.emptyHint")}</p>
       </section>
     );
   }
@@ -80,24 +82,134 @@ export function TimelinePicker({
   const busy = Boolean(loadingTimelineId || deletingTimelineId);
 
   return (
-    <section className="modern-panel p-5 sm:p-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <section className="timeline-picker-panel relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-indigo-950/95 p-5 shadow-[0_0_60px_rgba(34,211,238,0.08),0_24px_48px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:p-6">
+      <style>{`
+        @keyframes timeline-card-arrive {
+          0% {
+            opacity: 0;
+            transform: translateX(-56px) scale(0.86) rotateY(8deg);
+            filter: blur(10px) brightness(1.4);
+          }
+          55% {
+            opacity: 1;
+            transform: translateX(8px) scale(1.03) rotateY(0deg);
+            filter: blur(0) brightness(1.08);
+          }
+          78% {
+            transform: translateX(-3px) scale(0.99) rotateY(0deg);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(0) scale(1) rotateY(0deg);
+            filter: blur(0) brightness(1);
+          }
+        }
+
+        @keyframes timeline-shimmer-sweep {
+          0% { transform: translateX(-120%) skewX(-12deg); opacity: 0; }
+          30% { opacity: 0.7; }
+          100% { transform: translateX(220%) skewX(-12deg); opacity: 0; }
+        }
+
+        @keyframes timeline-edge-pulse {
+          0%, 100% { opacity: 0.35; }
+          50% { opacity: 0.85; }
+        }
+
+        .timeline-card-enter {
+          animation: timeline-card-arrive ${ENTER_DURATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1) both;
+          transform-origin: left center;
+          perspective: 800px;
+        }
+
+        .timeline-card-enter .timeline-shimmer {
+          animation: timeline-shimmer-sweep ${SHIMMER_DURATION_MS}ms ease-out both;
+        }
+
+        .timeline-card-idle {
+          border-color: rgba(34, 211, 238, 0.22);
+          background: linear-gradient(
+            145deg,
+            rgba(15, 23, 42, 0.92) 0%,
+            rgba(30, 27, 75, 0.78) 48%,
+            rgba(15, 23, 42, 0.88) 100%
+          );
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 0 0 1px rgba(34, 211, 238, 0.08),
+            0 8px 32px rgba(0, 0, 0, 0.35);
+        }
+
+        .timeline-card-idle:hover:not(:disabled) {
+          border-color: rgba(56, 189, 248, 0.55);
+          background: linear-gradient(
+            145deg,
+            rgba(30, 41, 59, 0.95) 0%,
+            rgba(49, 46, 129, 0.85) 45%,
+            rgba(15, 23, 42, 0.92) 100%
+          );
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 0 1px rgba(56, 189, 248, 0.35),
+            0 0 28px rgba(34, 211, 238, 0.22),
+            0 12px 40px rgba(79, 70, 229, 0.25);
+          transform: translateY(-3px) scale(1.02);
+        }
+
+        .timeline-card-active {
+          border-color: rgba(167, 139, 250, 0.65);
+          background: linear-gradient(
+            135deg,
+            #4c1d95 0%,
+            #2563eb 38%,
+            #0891b2 72%,
+            #7c3aed 100%
+          );
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.2),
+            0 0 0 1px rgba(196, 181, 253, 0.4),
+            0 0 40px rgba(34, 211, 238, 0.35),
+            0 16px 48px rgba(79, 70, 229, 0.45);
+        }
+
+        .timeline-card-active:hover:not(:disabled) {
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.25),
+            0 0 0 1px rgba(224, 231, 255, 0.5),
+            0 0 52px rgba(34, 211, 238, 0.45),
+            0 20px 56px rgba(99, 102, 241, 0.5);
+          transform: translateY(-2px) scale(1.01);
+        }
+      `}</style>
+
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(34,211,238,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.04) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent"
+        style={{ animation: "timeline-edge-pulse 3s ease-in-out infinite" }}
+        aria-hidden
+      />
+
+      <div className="relative flex flex-col items-center gap-1 text-center sm:items-center">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-600">
-            Saved reports
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-400/90">
+            {t("timeline.savedReports")}
           </p>
-          <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">
-            Pick a timeline
+          <h2 className="mt-1 font-display text-lg font-semibold tracking-tight text-white sm:text-xl">
+            {t("timeline.pickTimeline")}
           </h2>
-          <p className="mt-1 text-sm font-medium text-ink-faint">
-            {timelines.length} period{timelines.length === 1 ? "" : "s"} stored in Supabase · oldest
-            → newest
-          </p>
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-3">
-        {timelines.map((timeline) => {
+      <div className="relative mt-5 flex flex-wrap justify-center gap-3">
+        {timelines.map((timeline, index) => {
           const isActive = activeTimelineId === timeline.id;
           const isLoading = loadingTimelineId === timeline.id;
           const isDeleting = deletingTimelineId === timeline.id;
@@ -105,32 +217,46 @@ export function TimelinePicker({
           return (
             <div
               key={timeline.id}
-              className={`group/card relative min-w-[11rem] flex-1 sm:max-w-[16rem] sm:flex-none ${
-                isDeleting ? "opacity-60" : ""
+              className={`timeline-card-enter group/card relative min-w-[11rem] max-w-[16rem] flex-none ${
+                isDeleting ? "opacity-50" : ""
               }`}
+              style={{ animationDelay: `${index * STAGGER_MS}ms` }}
             >
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => onSelect(timeline.id)}
-                className={`relative w-full overflow-hidden rounded-2xl border px-4 py-4 pr-10 text-left transition-all duration-300 ${
-                  isActive
-                    ? "border-violet-400 bg-gradient-to-br from-violet-600 via-indigo-600 to-violet-700 text-white shadow-lg shadow-violet-500/30 ring-2 ring-violet-300/50"
-                    : "border-slate-200/90 bg-gradient-to-br from-white via-slate-50/80 to-violet-50/40 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md hover:shadow-violet-500/10"
+                className={`relative w-full overflow-hidden rounded-2xl border px-4 py-4 pr-10 text-left transition-all duration-500 ease-out ${
+                  isActive ? "timeline-card-active text-white" : "timeline-card-idle text-slate-100"
                 } ${isLoading ? "opacity-80" : ""}`}
               >
                 <div
-                  className={`pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full blur-2xl ${
-                    isActive ? "bg-white/20" : "bg-violet-400/15 group-hover/card:bg-violet-400/25"
+                  className="timeline-shimmer pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                  style={{ animationDelay: `${index * STAGGER_MS + 420}ms` }}
+                  aria-hidden
+                />
+                <div
+                  className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full blur-2xl transition-opacity duration-500 ${
+                    isActive
+                      ? "bg-cyan-300/30 opacity-100"
+                      : "bg-cyan-400/10 opacity-60 group-hover/card:bg-cyan-400/25 group-hover/card:opacity-100"
                   }`}
                 />
-                <div className="relative">
+                <div
+                  className={`pointer-events-none absolute -bottom-4 -left-4 h-14 w-14 rounded-full blur-2xl transition-opacity duration-500 ${
+                    isActive
+                      ? "bg-violet-400/25 opacity-100"
+                      : "bg-violet-500/0 opacity-0 group-hover/card:bg-violet-500/20 group-hover/card:opacity-100"
+                  }`}
+                />
+
+                <div className="relative z-[2]">
                   <div className="flex items-start justify-between gap-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors duration-300 ${
                         isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-violet-100 text-violet-800 group-hover/card:bg-violet-200"
+                          ? "border-white/25 bg-white/15 text-white"
+                          : "border-cyan-500/25 bg-cyan-500/10 text-cyan-300 group-hover/card:border-cyan-400/40 group-hover/card:bg-cyan-400/15 group-hover/card:text-cyan-200"
                       }`}
                     >
                       <svg
@@ -146,45 +272,45 @@ export function TimelinePicker({
                         <line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      Period
+                    {t("common.period")}
                     </span>
                     {timeline.has_wolt_summary && (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors duration-300 ${
                           isActive
-                            ? "bg-emerald-400/30 text-white"
-                            : "bg-emerald-100 text-emerald-800"
+                            ? "border-emerald-300/30 bg-emerald-400/20 text-emerald-100"
+                            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 group-hover/card:border-emerald-400/45 group-hover/card:text-emerald-200"
                         }`}
                       >
-                        Invoice
+                        {t("common.invoice")}
                       </span>
                     )}
                   </div>
 
                   <p
                     className={`mt-2.5 font-mono text-base font-bold tabular-nums tracking-tight sm:text-lg ${
-                      isActive ? "text-white" : "text-ink"
+                      isActive ? "text-white" : "text-slate-50 group-hover/card:text-white"
                     }`}
                   >
-                    {isLoading ? "Loading…" : timeline.period_label}
+                    {isLoading ? t("timeline.loadingPeriod") : timeline.period_label}
                   </p>
 
                   <p
-                    className={`mt-1 text-xs font-semibold ${
-                      isActive ? "text-violet-100" : "text-ink-muted"
+                    className={`mt-1 text-xs font-semibold transition-colors duration-300 ${
+                      isActive ? "text-cyan-100/90" : "text-slate-400 group-hover/card:text-slate-300"
                     }`}
                   >
-                    {timeline.delivered_order_count} orders · Net{" "}
+                    {timeline.delivered_order_count} {t("common.orders")} · {t("common.net")}{" "}
                     {formatIls(timeline.headline_net_income)}
                   </p>
 
                   {timeline.created_at && (
                     <p
-                      className={`mt-2 text-[10px] font-medium ${
-                        isActive ? "text-violet-200/90" : "text-ink-faint"
+                      className={`mt-2 text-[10px] font-medium transition-colors duration-300 ${
+                        isActive ? "text-violet-200/80" : "text-slate-500 group-hover/card:text-slate-400"
                       }`}
                     >
-                      Saved {formatSavedDate(timeline.created_at)}
+                      {t("common.saved")} {formatSavedDate(timeline.created_at)}
                     </p>
                   )}
                 </div>
@@ -192,14 +318,14 @@ export function TimelinePicker({
 
               <button
                 type="button"
-                title="Delete from database"
+                title={t("timeline.deleteTitle")}
                 disabled={busy}
-                aria-label={`Delete ${timeline.period_label}`}
+                aria-label={t("timeline.deleteAria", { label: timeline.period_label })}
                 onClick={() => onDelete(timeline.id)}
-                className={`absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg border transition ${
+                className={`absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg border transition-all duration-300 ${
                   isActive
-                    ? "border-white/30 bg-white/15 text-white hover:bg-red-500/90 hover:border-red-400"
-                    : "border-slate-200/90 bg-white/90 text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    ? "border-white/20 bg-white/10 text-white hover:border-red-400/60 hover:bg-red-500/80 hover:shadow-[0_0_16px_rgba(248,113,113,0.45)]"
+                    : "border-slate-600/50 bg-slate-900/60 text-slate-500 hover:border-red-400/50 hover:bg-red-950/80 hover:text-red-300 hover:shadow-[0_0_14px_rgba(248,113,113,0.3)]"
                 } disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 {isDeleting ? (

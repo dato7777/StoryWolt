@@ -2,6 +2,8 @@
  * Search input shared by Orders and Products tabs.
  */
 
+import { useI18n } from "../i18n/LanguageContext";
+
 interface SearchFieldProps {
   value: string;
   onChange: (value: string) => void;
@@ -17,6 +19,8 @@ export function SearchField({
   resultCount,
   totalCount,
 }: SearchFieldProps) {
+  const { t } = useI18n();
+
   return (
     <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 px-6 py-4 backdrop-blur-md">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -29,7 +33,7 @@ export function SearchField({
         />
         {resultCount != null && totalCount != null && value.trim() && (
           <p className="text-base font-semibold text-ink-muted">
-            Showing {resultCount} of {totalCount}
+            {t("common.showingOf", { count: resultCount, total: totalCount })}
           </p>
         )}
       </div>

@@ -3,6 +3,7 @@
  */
 
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useI18n } from "../i18n/LanguageContext";
 import type { ReportTimeline } from "../types";
 
 interface DeleteTimelineConfirmDialogProps {
@@ -18,6 +19,7 @@ export function DeleteTimelineConfirmDialog({
   onConfirm,
   onCancel,
 }: DeleteTimelineConfirmDialogProps) {
+  const { t } = useI18n();
   const [confirmation, setConfirmation] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
@@ -61,10 +63,7 @@ export function DeleteTimelineConfirmDialog({
         }
       }}
     >
-      <div
-        className="fixed inset-0 bg-[#1b1f24]/50"
-        aria-hidden
-      />
+      <div className="fixed inset-0 bg-[#1b1f24]/50" aria-hidden />
 
       <div
         role="dialog"
@@ -89,22 +88,13 @@ export function DeleteTimelineConfirmDialog({
                 </svg>
               </span>
               <div>
-                <h2
-                  id={titleId}
-                  className="text-base font-semibold leading-6 text-[#1f2328]"
-                >
-                  Delete saved report
+                <h2 id={titleId} className="text-base font-semibold leading-6 text-[#1f2328]">
+                  {t("deleteDialog.title")}
                 </h2>
-                <p
-                  id={descriptionId}
-                  className="mt-2 text-sm leading-5 text-[#656d76]"
-                >
-                  Are you sure you want to delete{" "}
-                  <span className="font-semibold text-[#1f2328]">{confirmPhrase}</span>?
-                  This action{" "}
-                  <strong className="font-semibold text-[#1f2328]">cannot be undone</strong>.
-                  This will permanently remove the saved timeline and all related data from
-                  Supabase (summary, orders, products, and line items).
+                <p id={descriptionId} className="mt-2 text-sm leading-5 text-[#656d76]">
+                  {t("deleteDialog.bodyStart")}{" "}
+                  <span className="font-semibold text-[#1f2328]">{confirmPhrase}</span>?{" "}
+                  {t("deleteDialog.bodyEnd")}
                 </p>
               </div>
             </div>
@@ -112,13 +102,11 @@ export function DeleteTimelineConfirmDialog({
 
           <div className="border-b border-[#d0d7de] bg-[#fff8f8] px-4 py-4 sm:px-5">
             <div className="rounded-md border border-[#ff818266] bg-[#ffebe9] px-3 py-3">
-              <p className="text-sm font-semibold text-[#82071e]">
-                Unexpected bad things will happen if you don&apos;t read this!
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-5 text-[#82071e]">
-                <li>This will permanently delete the report for this Wolt period.</li>
-                <li>All orders, products, and invoice data for this timeline will be removed.</li>
-                <li>You can re-create it by uploading the CSV files and calculating again.</li>
+              <p className="text-sm font-semibold text-[#82071e]">{t("deleteDialog.warningTitle")}</p>
+              <ul className="mt-2 list-disc space-y-1 ps-5 text-sm leading-5 text-[#82071e]">
+                <li>{t("deleteDialog.bullet1")}</li>
+                <li>{t("deleteDialog.bullet2")}</li>
+                <li>{t("deleteDialog.bullet3")}</li>
               </ul>
             </div>
           </div>
@@ -128,8 +116,8 @@ export function DeleteTimelineConfirmDialog({
               htmlFor="delete-timeline-confirm"
               className="block text-sm font-normal text-[#1f2328]"
             >
-              To confirm, type{" "}
-              <span className="font-semibold">{confirmPhrase}</span> in the box below:
+              {t("deleteDialog.confirmLabel")}{" "}
+              <span className="font-semibold">{confirmPhrase}</span> {t("deleteDialog.confirmSuffix")}
             </label>
             <input
               ref={inputRef}
@@ -151,14 +139,14 @@ export function DeleteTimelineConfirmDialog({
               onClick={onCancel}
               className="inline-flex items-center justify-center rounded-md border border-[#d0d7de] bg-[#f6f8fa] px-3 py-1.5 text-sm font-medium text-[#24292f] shadow-[0_1px_0_rgba(27,31,36,0.04)] transition hover:bg-[#eef1f4] hover:border-[#c9d1d9] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={!canDelete}
               className="inline-flex items-center justify-center rounded-md border border-[rgba(27,31,36,0.15)] bg-[#cf222e] px-3 py-1.5 text-sm font-semibold text-white shadow-[0_1px_0_rgba(27,31,36,0.1)] transition hover:bg-[#a40e26] disabled:cursor-not-allowed disabled:border-[#d0d7de] disabled:bg-[#eaeef2] disabled:text-[#656d76] disabled:shadow-none"
             >
-              {deleting ? "Deleting…" : "I understand, delete this report"}
+              {deleting ? t("common.deleting") : t("deleteDialog.submit")}
             </button>
           </div>
         </form>

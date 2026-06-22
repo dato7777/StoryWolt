@@ -38,6 +38,12 @@ export default {
         "tab-spotlight": "tabSpotlight 1.4s ease-in-out infinite",
         "orb-float": "orbFloat 18s ease-in-out infinite",
         "shimmer": "shimmer 2.5s ease-in-out infinite",
+        "welcome-ring": "welcomeRingPulse 3.2s ease-in-out infinite",
+        "welcome-gradient": "welcomeGradientShift 4s ease infinite",
+        "welcome-particle": "welcomeParticleFloat 3.5s ease-in-out infinite",
+        "welcome-scan": "welcomeScan 4s linear infinite",
+        "welcome-progress": "welcomeProgress 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards",
+        "welcome-word-in": "welcomeWordIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards",
       },
       keyframes: {
         fadeUp: {
@@ -73,6 +79,35 @@ export default {
         shimmer: {
           "0%, 100%": { opacity: "0.5" },
           "50%": { opacity: "1" },
+        },
+        welcomeRingPulse: {
+          "0%, 100%": { transform: "translate(-50%, -50%) scale(0.92)", opacity: "0.35" },
+          "50%": { transform: "translate(-50%, -50%) scale(1.08)", opacity: "0.65" },
+        },
+        welcomeGradientShift: {
+          "0%, 100%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
+        },
+        welcomeParticleFloat: {
+          "0%, 100%": { transform: "translateY(0) scale(1)", opacity: "0.2" },
+          "50%": { transform: "translateY(-18px) scale(1.4)", opacity: "0.9" },
+        },
+        welcomeScan: {
+          "0%": { transform: "translateY(-100%)" },
+          "100%": { transform: "translateY(100vh)" },
+        },
+        welcomeProgress: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(0)" },
+        },
+        welcomeExit: {
+          "0%": { opacity: "1", transform: "scale(1)", filter: "blur(0)" },
+          "100%": { opacity: "0", transform: "scale(1.06)", filter: "blur(12px)" },
+        },
+        welcomeWordIn: {
+          "0%": { opacity: "0", transform: "translateY(28px) scale(0.88) blur(8px)" },
+          "60%": { opacity: "1", transform: "translateY(-4px) scale(1.02) blur(0)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1) blur(0)" },
         },
       },
     },

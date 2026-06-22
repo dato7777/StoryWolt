@@ -1,8 +1,11 @@
+import { useI18n } from "../i18n/LanguageContext";
+
 interface LossOutcomeBannerProps {
   lossCount: number;
 }
 
 export function LossOutcomeBanner({ lossCount }: LossOutcomeBannerProps) {
+  const { t } = useI18n();
   const hasLosses = lossCount > 0;
 
   return (
@@ -29,24 +32,16 @@ export function LossOutcomeBanner({ lossCount }: LossOutcomeBannerProps) {
               hasLosses ? "text-red-950" : "text-emerald-950"
             }`}
           >
-            {hasLosses ? (
-              <>
-                Tomer, there are{" "}
-                <span className="font-mono tabular-nums text-red-700">{lossCount}</span> items you
-                lose on them!
-              </>
-            ) : (
-              <>Tomer — you rock! No losses on sold items!</>
-            )}
+            {hasLosses
+              ? t("lossBanner.hasLosses", { count: lossCount })
+              : t("lossBanner.noLosses")}
           </p>
           <p
             className={`mt-1.5 text-sm font-medium ${
               hasLosses ? "text-red-900/75" : "text-emerald-900/75"
             }`}
           >
-            {hasLosses
-              ? "Tap the highlighted Losses tab below to review every line with zero or negative net income."
-              : "Every delivered line in this period has positive net income. Keep it up!"}
+            {hasLosses ? t("lossBanner.hintLosses") : t("lossBanner.hintNoLosses")}
           </p>
         </div>
       </div>
