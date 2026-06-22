@@ -209,6 +209,8 @@ export default function App() {
       const response = await calculateNetIncome(payload);
       applyDashboardResult(response, response.timeline_id ?? null);
       void refreshTimelines();
+      // Persist runs after API response; re-fetch so saved-report buttons appear.
+      window.setTimeout(() => void refreshTimelines(), 2500);
     } catch (err) {
       setResult(null);
       const message = err instanceof Error ? err.message : "Unknown error";

@@ -7,6 +7,8 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
+from psycopg2.extras import execute_values
+
 from commission_engine import CommissionOffer, normalize_product_name
 from supabase_client import db_connection, is_db_configured
 
@@ -250,8 +252,13 @@ def save_report_timeline(
                 ),
             )
 
-            for idx, row in enumerate(result.get("rows") or []):
-                cur.execute(
+            product_rows = [
+                _product_row_params(timeline_id, idx, row)
+                for idx, row in enumerate(result.get("rows") or [])
+            ]
+            if product_rows:
+                execute_values(
+                    cur,
                     """
                     insert into report_product_rows (
                       timeline_id, sort_order, item_name, merchant_sku, quantity,
@@ -260,23 +267,16 @@ def save_report_timeline(
                       commission_with_vat_per_item, product_self_cost, net_income,
                       net_income_per_item, allocated_ad_cost, net_income_after_ad_cost,
                       net_income_after_ad_cost_per_item, status, match_method
-                    ) values (
-                      %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-                    )
+                    ) values %s
                     """,
-                    _product_row_params(timeline_id, idx, row),
+                    product_rows,
+                    page_size=500,
                 )
 
-            for idx, order in enumerate(result.get("orders") or []):
-                cur.execute(
-                    """
-                    insert into report_orders (
-                      timeline_id, sort_order, order_number, order_placed, delivery_time,
-                      delivery_status, order_gross, commission_before_vat, commission_with_vat,
-                      net_income, allocated_ad_cost, net_income_after_ad_cost
-                    ) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    returning id
-                    """,
+            orders = result.get("orders") or []
+            order_id_by_sort: dict[int, str] = {}
+            if orders:
+                order_params = [
                     (
                         timeline_id,
                         idx,
@@ -290,44 +290,75 @@ def save_report_timeline(
                         _num(order.get("net_income")) or 0,
                         _num(order.get("allocated_ad_cost")) or 0,
                         _num(order.get("net_income_after_ad_cost")) or 0,
-                    ),
-                )
-                order_db_id = str(cur.fetchone()["id"])
-
-                for line_idx, item in enumerate(order.get("items") or []):
-                    cur.execute(
-                        """
-                        insert into report_order_line_items (
-                          order_id, sort_order, item_name, merchant_sku, quantity, line_gross,
-                          list_price, commission_percent, commission_before_vat, commission_with_vat,
-                          commission_with_vat_per_item, product_self_cost, net_income,
-                          net_income_per_item, allocated_ad_cost, net_income_after_ad_cost,
-                          net_income_after_ad_cost_per_item, status, match_method
-                        ) values (
-                          %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-                        )
-                        """,
-                        _line_item_params(order_db_id, line_idx, item),
                     )
+                    for idx, order in enumerate(orders)
+                ]
+                inserted_orders = execute_values(
+                    cur,
+                    """
+                    insert into report_orders (
+                      timeline_id, sort_order, order_number, order_placed, delivery_time,
+                      delivery_status, order_gross, commission_before_vat, commission_with_vat,
+                      net_income, allocated_ad_cost, net_income_after_ad_cost
+                    ) values %s
+                    returning id, sort_order
+                    """,
+                    order_params,
+                    page_size=200,
+                    fetch=True,
+                )
+                order_id_by_sort = {
+                    int(row["sort_order"]): str(row["id"]) for row in inserted_orders
+                }
 
-            for idx, product in enumerate(result.get("missing_commission_products") or []):
-                cur.execute(
+            line_item_rows: list[tuple[Any, ...]] = []
+            for idx, order in enumerate(orders):
+                order_db_id = order_id_by_sort.get(idx)
+                if not order_db_id:
+                    continue
+                for line_idx, item in enumerate(order.get("items") or []):
+                    line_item_rows.append(_line_item_params(order_db_id, line_idx, item))
+
+            if line_item_rows:
+                execute_values(
+                    cur,
+                    """
+                    insert into report_order_line_items (
+                      order_id, sort_order, item_name, merchant_sku, quantity, line_gross,
+                      list_price, commission_percent, commission_before_vat, commission_with_vat,
+                      commission_with_vat_per_item, product_self_cost, net_income,
+                      net_income_per_item, allocated_ad_cost, net_income_after_ad_cost,
+                      net_income_after_ad_cost_per_item, status, match_method
+                    ) values %s
+                    """,
+                    line_item_rows,
+                    page_size=500,
+                )
+
+            missing_rows = [
+                (
+                    timeline_id,
+                    idx,
+                    product.get("item_name", ""),
+                    product.get("merchant_sku", ""),
+                    _int(product.get("quantity")),
+                    _num(product.get("sold_total")) or 0,
+                    product.get("status", "missing_commission"),
+                    product.get("match_method", ""),
+                )
+                for idx, product in enumerate(result.get("missing_commission_products") or [])
+            ]
+            if missing_rows:
+                execute_values(
+                    cur,
                     """
                     insert into report_missing_commission_products (
                       timeline_id, sort_order, item_name, merchant_sku, quantity,
                       sold_total, status, match_method
-                    ) values (%s,%s,%s,%s,%s,%s,%s,%s)
+                    ) values %s
                     """,
-                    (
-                        timeline_id,
-                        idx,
-                        product.get("item_name", ""),
-                        product.get("merchant_sku", ""),
-                        _int(product.get("quantity")),
-                        _num(product.get("sold_total")) or 0,
-                        product.get("status", "missing_commission"),
-                        product.get("match_method", ""),
-                    ),
+                    missing_rows,
+                    page_size=500,
                 )
 
     return timeline_id

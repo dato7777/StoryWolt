@@ -153,21 +153,19 @@ def handle_calculate_post(handler: BaseHTTPRequestHandler) -> None:
             legacy_items_sold_csv=legacy_csv or None,
         )
 
+        # Return dashboard immediately; persist after response (batch inserts in save_report_timeline).
+        send_json(handler, 200, result)
+
         if is_db_configured():
             try:
-                timeline_id = save_report_timeline(
+                save_report_timeline(
                     result,
                     catalog_version_id=catalog_version_id,
                     order_numbers_file_name=body.get("orderNumbersFileName"),
                     payment_details_file_name=body.get("paymentDetailsFileName"),
                 )
-                result["timeline_id"] = timeline_id
-                result["persisted"] = True
             except Exception as exc:
-                result["persisted"] = False
-                result["persist_error"] = str(exc)
-
-        send_json(handler, 200, result)
+                print(f"[persist] Failed to save timeline: {exc}")
     except FileNotFoundError as exc:
         send_json(handler, 500, {"error": str(exc)})
     except ValueError as exc:
