@@ -9,6 +9,7 @@ import { LossOutcomeBanner } from "./components/LossOutcomeBanner";
 import { OrdersTable } from "./components/OrdersTable";
 import { ResultsTable } from "./components/ResultsTable";
 import { TimelinePicker } from "./components/TimelinePicker";
+import { DeleteTimelineConfirmDialog } from "./components/DeleteTimelineConfirmDialog";
 import { UploadPanel } from "./components/UploadPanel";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
 import type { CalculationResponse, ReportTimeline, UploadFiles } from "./types";
@@ -56,6 +57,7 @@ export default function App() {
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
   const [loadingTimelineId, setLoadingTimelineId] = useState<string | null>(null);
   const [deletingTimelineId, setDeletingTimelineId] = useState<string | null>(null);
+  const [deletePendingTimeline, setDeletePendingTimeline] = useState<ReportTimeline | null>(null);
   const tabsBarRef = useRef<HTMLDivElement>(null);
   const lossBannerRef = useRef<HTMLDivElement>(null);
   const resultGenerationRef = useRef(0);
@@ -115,17 +117,23 @@ export default function App() {
     setActiveTab(response.orders.length > 0 ? "orders" : "products");
   }
 
-  async function handleDeleteTimeline(timelineId: string) {
+  function handleRequestDeleteTimeline(timelineId: string) {
     const timeline = timelines.find((t) => t.id === timelineId);
-    const label = timeline?.period_label ?? "this period";
-    if (
-      !window.confirm(
-        `Delete "${label}" from Supabase?\n\nThis removes the saved report, orders, products, and summary for that period. This cannot be undone.`,
-      )
-    ) {
-      return;
+    if (timeline) {
+      setDeletePendingTimeline(timeline);
     }
+  }
 
+  function handleCancelDeleteTimeline() {
+    if (!deletingTimelineId) {
+      setDeletePendingTimeline(null);
+    }
+  }
+
+  async function handleConfirmDeleteTimeline() {
+    if (!deletePendingTimeline) return;
+
+    const timelineId = deletePendingTimeline.id;
     setDeletingTimelineId(timelineId);
     setError(null);
     try {
@@ -134,12 +142,14 @@ export default function App() {
         setResult(null);
         setActiveTimelineId(null);
       }
+      setDeletePendingTimeline(null);
       await refreshTimelines();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
       if (message.includes("sign in again")) {
         setAuthState("guest");
+        setDeletePendingTimeline(null);
       }
     } finally {
       setDeletingTimelineId(null);
@@ -328,8 +338,17 @@ export default function App() {
           deletingTimelineId={deletingTimelineId}
           databaseConfigured={databaseConfigured}
           onSelect={(id) => void handleSelectTimeline(id)}
-          onDelete={(id) => void handleDeleteTimeline(id)}
+          onDelete={(id) => handleRequestDeleteTimeline(id)}
         />
+
+        {deletePendingTimeline && (
+          <DeleteTimelineConfirmDialog
+            timeline={deletePendingTimeline}
+            deleting={deletingTimelineId === deletePendingTimeline.id}
+            onConfirm={() => void handleConfirmDeleteTimeline()}
+            onCancel={handleCancelDeleteTimeline}
+          />
+        )}
 
         <UploadPanel
           files={files}
