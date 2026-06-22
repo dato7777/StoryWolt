@@ -1627,7 +1627,8 @@ def build_invoice_reconciliation(
 
 
 def run_calculation(
-    offers_path: Path,
+    offers_path: Path | None = None,
+    offers_by_name: dict[str, CommissionOffer] | None = None,
     order_numbers_csv: str | None = None,
     items_sold_csv: str | None = None,
     payment_details_csv: str | None = None,
@@ -1638,8 +1639,13 @@ def run_calculation(
 
     Preferred: orderNumbers.csv (delivered orders, excludes rejected) + optional itemsSold for SKUs.
     Legacy: itemsSold.csv only (includes rejected quantities — not invoice-accurate).
+
+    Commission lookup: pass offers_by_name (e.g. from Supabase) or offers_path (xlsx fallback).
     """
-    offers_by_name = load_offers_from_xlsx(offers_path)
+    if offers_by_name is None:
+        if offers_path is None:
+            raise ValueError("Commission lookup required: offers_path or offers_by_name")
+        offers_by_name = load_offers_from_xlsx(offers_path)
     offers_by_name, offers_by_sku = build_offer_indexes(offers_by_name)
 
     formula = {

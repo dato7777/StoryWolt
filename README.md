@@ -59,7 +59,26 @@ wolt-net-income/
 
 **Why serverless (Vercel)?** No 50–60s Render cold start; functions spin up in milliseconds.
 
-**Future database:** `supabase/schema.sql` defines `calculation_runs`, `calculation_rows`, and `commission_offers` for Supabase PostgreSQL.
+**Database (Supabase):** `supabase/schema.sql` defines commission catalog + saved report timelines. Set `DATABASE_URL` in `.env` / Vercel env vars.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | For DB features | Supabase PostgreSQL URI (Settings → Database) |
+| `OFFERS_XLSX_PATH` | No | Local xlsx fallback if DB unset |
+
+### Supabase setup
+
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in **SQL Editor**.
+3. Add `DATABASE_URL` to `.env` (use pooler URI for Vercel).
+4. Seed commission catalog (move off public GitHub):
+
+```bash
+pip install -r requirements.txt
+python scripts/seed_commission_offers.py
+```
+
+After setup: each **Calculate** saves a timeline; **Saved reports** buttons on the dashboard reload any period instantly.
 
 ## Admin login (no Supabase)
 

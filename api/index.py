@@ -34,6 +34,14 @@ class handler(BaseHTTPRequestHandler):
             handlers.handle_session_get(self)
         elif path == "/api/calculate":
             handlers.handle_calculate_get(self)
+        elif path == "/api/timelines":
+            handlers.handle_timelines_list_get(self)
+        elif path.startswith("/api/timelines/"):
+            timeline_id = path.removeprefix("/api/timelines/").strip("/")
+            if timeline_id:
+                handlers.handle_timeline_get(self, timeline_id)
+            else:
+                handlers.send_json(self, 404, {"error": "Timeline id required"})
         else:
             handlers.send_json(self, 404, {"error": f"Not found: {path}"})
 

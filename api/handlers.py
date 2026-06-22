@@ -15,7 +15,10 @@ from auth_utils import (
     verify_credentials,
     verify_session_token,
 )
+from commission_catalog import resolve_commission_catalog
 from commission_engine import run_calculation
+from db_repository import list_report_timelines, load_report_timeline, save_report_timeline
+from supabase_client import is_db_configured
 
 CORS_HEADERS = (
     ("Access-Control-Allow-Origin", "*"),
@@ -126,9 +129,6 @@ def handle_calculate_post(handler: BaseHTTPRequestHandler) -> None:
         return
 
     offers_path = Path(os.environ.get("OFFERS_XLSX_PATH", str(DEFAULT_OFFERS_PATH)))
-    if not offers_path.exists():
-        send_json(handler, 500, {"error": f"Commission lookup file not found: {offers_path}"})
-        return
 
     order_numbers_csv = body.get("orderNumbersCsvText", "").strip()
     items_sold_csv = body.get("itemsSoldCsvText", "").strip()
@@ -144,15 +144,67 @@ def handle_calculate_post(handler: BaseHTTPRequestHandler) -> None:
         return
 
     try:
+        offers_by_name, _, catalog_version_id = resolve_commission_catalog(offers_path)
         result = run_calculation(
-            offers_path,
+            offers_by_name=offers_by_name,
             order_numbers_csv=order_numbers_csv or None,
             items_sold_csv=items_sold_csv or None,
             payment_details_csv=payment_details_csv or None,
             legacy_items_sold_csv=legacy_csv or None,
         )
+
+        if is_db_configured():
+            try:
+                timeline_id = save_report_timeline(
+                    result,
+                    catalog_version_id=catalog_version_id,
+                    order_numbers_file_name=body.get("orderNumbersFileName"),
+                    payment_details_file_name=body.get("paymentDetailsFileName"),
+                )
+                result["timeline_id"] = timeline_id
+                result["persisted"] = True
+            except Exception as exc:
+                result["persisted"] = False
+                result["persist_error"] = str(exc)
+
         send_json(handler, 200, result)
+    except FileNotFoundError as exc:
+        send_json(handler, 500, {"error": str(exc)})
     except ValueError as exc:
         send_json(handler, 400, {"error": str(exc)})
     except Exception as exc:  # pragma: no cover
         send_json(handler, 500, {"error": f"Calculation failed: {exc}"})
+
+
+def handle_timelines_list_get(handler: BaseHTTPRequestHandler) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    if not is_db_configured():
+        send_json(handler, 200, {"timelines": [], "database_configured": False})
+        return
+
+    try:
+        timelines = list_report_timelines()
+        send_json(handler, 200, {"timelines": timelines, "database_configured": True})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Failed to load timelines: {exc}"})
+
+
+def handle_timeline_get(handler: BaseHTTPRequestHandler, timeline_id: str) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    if not is_db_configured():
+        send_json(handler, 503, {"error": "Database not configured."})
+        return
+
+    try:
+        result = load_report_timeline(timeline_id)
+        send_json(handler, 200, result)
+    except ValueError as exc:
+        send_json(handler, 404, {"error": str(exc)})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Failed to load timeline: {exc}"})

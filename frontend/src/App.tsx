@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { logoutAdmin, verifySession } from "./api/auth";
-import { calculateNetIncome } from "./api/client";
+import { calculateNetIncome, fetchReportTimeline, fetchReportTimelines } from "./api/client";
 import { Dashboard } from "./components/Dashboard";
 import { LoginPage } from "./components/LoginPage";
 import { MissingCommissionPanel } from "./components/MissingCommissionPanel";
@@ -8,9 +8,10 @@ import { LossItemsTable, countLossItems } from "./components/LossItemsTable";
 import { LossOutcomeBanner } from "./components/LossOutcomeBanner";
 import { OrdersTable } from "./components/OrdersTable";
 import { ResultsTable } from "./components/ResultsTable";
+import { TimelinePicker } from "./components/TimelinePicker";
 import { UploadPanel } from "./components/UploadPanel";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
-import type { CalculationResponse, UploadFiles } from "./types";
+import type { CalculationResponse, ReportTimeline, UploadFiles } from "./types";
 
 type TabId = "orders" | "products" | "losses";
 type AuthState = "checking" | "guest" | "authenticated";
@@ -49,6 +50,11 @@ export default function App() {
   const [includeAllocatedAdCost, setIncludeAllocatedAdCost] = useState(false);
   const [showLossBanner, setShowLossBanner] = useState(false);
   const [highlightLossesTab, setHighlightLossesTab] = useState(false);
+  const [timelines, setTimelines] = useState<ReportTimeline[]>([]);
+  const [timelinesLoading, setTimelinesLoading] = useState(false);
+  const [databaseConfigured, setDatabaseConfigured] = useState(false);
+  const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
+  const [loadingTimelineId, setLoadingTimelineId] = useState<string | null>(null);
   const tabsBarRef = useRef<HTMLDivElement>(null);
   const lossBannerRef = useRef<HTMLDivElement>(null);
   const resultGenerationRef = useRef(0);
@@ -74,6 +80,57 @@ export default function App() {
       cancelled = true;
     };
   }, [authState]);
+
+  const refreshTimelines = useCallback(async () => {
+    setTimelinesLoading(true);
+    try {
+      const { timelines: list, database_configured } = await fetchReportTimelines();
+      setTimelines(list);
+      setDatabaseConfigured(database_configured);
+    } catch {
+      setTimelines([]);
+      setDatabaseConfigured(false);
+    } finally {
+      setTimelinesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authState !== "authenticated") return;
+    void refreshTimelines();
+  }, [authState, refreshTimelines]);
+
+  function applyDashboardResult(
+    response: CalculationResponse,
+    timelineId: string | null,
+  ) {
+    resultGenerationRef.current += 1;
+    clearLossSequenceTimers();
+    setResult(response);
+    setActiveTimelineId(timelineId);
+    setIncludeAllocatedAdCost(false);
+    setShowLossBanner(false);
+    setHighlightLossesTab(false);
+    setActiveTab(response.orders.length > 0 ? "orders" : "products");
+  }
+
+  async function handleSelectTimeline(timelineId: string) {
+    setLoadingTimelineId(timelineId);
+    setError(null);
+    try {
+      const response = await fetchReportTimeline(timelineId);
+      applyDashboardResult(response, timelineId);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      if (message.includes("sign in again")) {
+        setAuthState("guest");
+      }
+    } finally {
+      setLoadingTimelineId(null);
+    }
+  }
 
   const lossItemCount = result
     ? countLossItems(result.orders, includeAllocatedAdCost)
@@ -138,21 +195,20 @@ export default function App() {
       const payload: {
         orderNumbersCsvText: string;
         paymentDetailsCsvText?: string;
+        orderNumbersFileName?: string;
+        paymentDetailsFileName?: string;
       } = {
         orderNumbersCsvText: await files.orderNumbers.text(),
+        orderNumbersFileName: files.orderNumbers.name,
       };
       if (files.paymentDetails) {
         payload.paymentDetailsCsvText = await files.paymentDetails.text();
+        payload.paymentDetailsFileName = files.paymentDetails.name;
       }
 
       const response = await calculateNetIncome(payload);
-      resultGenerationRef.current += 1;
-      clearLossSequenceTimers();
-      setResult(response);
-      setIncludeAllocatedAdCost(false);
-      setShowLossBanner(false);
-      setHighlightLossesTab(false);
-      setActiveTab(response.orders.length > 0 ? "orders" : "products");
+      applyDashboardResult(response, response.timeline_id ?? null);
+      void refreshTimelines();
     } catch (err) {
       setResult(null);
       const message = err instanceof Error ? err.message : "Unknown error";
@@ -210,7 +266,9 @@ export default function App() {
             {result && (
               <div className="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 sm:flex sm:px-4 sm:py-2">
                 <span className="h-2 w-2 animate-shimmer rounded-full bg-emerald-500" />
-                <span className="text-sm font-bold text-emerald-800">Live results</span>
+                <span className="text-sm font-bold text-emerald-800">
+                  {activeTimelineId ? "Saved report" : "Live results"}
+                </span>
               </div>
             )}
             <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-muted sm:px-4 sm:py-2 sm:text-sm">
@@ -228,6 +286,15 @@ export default function App() {
       </header>
 
       <main className="relative mx-auto max-w-7xl space-y-8 px-6 py-8">
+        <TimelinePicker
+          timelines={timelines}
+          activeTimelineId={activeTimelineId}
+          loading={timelinesLoading}
+          loadingTimelineId={loadingTimelineId}
+          databaseConfigured={databaseConfigured}
+          onSelect={(id) => void handleSelectTimeline(id)}
+        />
+
         <UploadPanel
           files={files}
           onFilesChange={setFiles}

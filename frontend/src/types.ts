@@ -169,4 +169,22 @@ export interface CalculationResponse {
     commission_with_vat: string;
     net_income: string;
   };
+  /** Set when saved to Supabase after calculate */
+  timeline_id?: string;
+  persisted?: boolean;
+  persist_error?: string;
+  saved_at?: string;
+}
+
+/** List item from GET /api/timelines */
+export interface ReportTimeline {
+  id: string;
+  created_at: string | null;
+  period_label: string;
+  period_start: string | null;
+  period_end: string | null;
+  delivered_order_count: number;
+  headline_net_income: number | null;
+  has_wolt_summary: boolean;
+  wolt_payout: number | null;
 }
