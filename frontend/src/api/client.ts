@@ -117,3 +117,18 @@ export async function fetchReportTimeline(timelineId: string): Promise<Calculati
   const body = await parseApiResponse(response);
   return body as unknown as CalculationResponse;
 }
+
+/** Delete a saved timeline and all related Supabase rows. */
+export async function deleteReportTimeline(timelineId: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/api/timelines/${timelineId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+  } catch {
+    throw new Error("Cannot reach the API.");
+  }
+
+  await parseApiResponse(response);
+}

@@ -53,3 +53,14 @@ class handler(BaseHTTPRequestHandler):
             handlers.handle_calculate_post(self)
         else:
             handlers.send_json(self, 404, {"error": f"Not found: {path}"})
+
+    def do_DELETE(self) -> None:
+        path = self._path()
+        if path.startswith("/api/timelines/"):
+            timeline_id = path.removeprefix("/api/timelines/").strip("/")
+            if timeline_id:
+                handlers.handle_timeline_delete(self, timeline_id)
+            else:
+                handlers.send_json(self, 404, {"error": "Timeline id required"})
+        else:
+            handlers.send_json(self, 404, {"error": f"Not found: {path}"})

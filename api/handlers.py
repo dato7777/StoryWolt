@@ -17,12 +17,17 @@ from auth_utils import (
 )
 from commission_catalog import resolve_commission_catalog
 from commission_engine import run_calculation
-from db_repository import list_report_timelines, load_report_timeline, save_report_timeline
+from db_repository import (
+    delete_report_timeline,
+    list_report_timelines,
+    load_report_timeline,
+    save_report_timeline,
+)
 from supabase_client import is_db_configured
 
 CORS_HEADERS = (
     ("Access-Control-Allow-Origin", "*"),
-    ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+    ("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS"),
     ("Access-Control-Allow-Headers", "Content-Type, Authorization"),
 )
 
@@ -206,3 +211,21 @@ def handle_timeline_get(handler: BaseHTTPRequestHandler, timeline_id: str) -> No
         send_json(handler, 404, {"error": str(exc)})
     except Exception as exc:
         send_json(handler, 500, {"error": f"Failed to load timeline: {exc}"})
+
+
+def handle_timeline_delete(handler: BaseHTTPRequestHandler, timeline_id: str) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    if not is_db_configured():
+        send_json(handler, 503, {"error": "Database not configured."})
+        return
+
+    try:
+        delete_report_timeline(timeline_id)
+        send_json(handler, 200, {"deleted": True, "id": timeline_id})
+    except ValueError as exc:
+        send_json(handler, 404, {"error": str(exc)})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Failed to delete timeline: {exc}"})

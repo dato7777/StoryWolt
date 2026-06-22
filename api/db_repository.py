@@ -432,12 +432,23 @@ def list_report_timelines() -> list[dict[str, Any]]:
                   s.wolt_summary_payout
                 from report_timelines t
                 join report_timeline_summaries s on s.timeline_id = t.id
-                order by coalesce(t.period_start, t.created_at::date) desc, t.created_at desc
+                order by coalesce(t.period_start, t.created_at::date) asc, t.created_at asc
                 """
             )
             rows = cur.fetchall()
 
     return [_timeline_list_item(row) for row in rows]
+
+
+def delete_report_timeline(timeline_id: str) -> None:
+    """Delete a saved timeline and all related rows (FK cascade)."""
+    UUID(timeline_id)  # validate
+
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("delete from report_timelines where id = %s", (timeline_id,))
+            if cur.rowcount == 0:
+                raise ValueError(f"Timeline not found: {timeline_id}")
 
 
 def _timeline_list_item(row: dict[str, Any]) -> dict[str, Any]:

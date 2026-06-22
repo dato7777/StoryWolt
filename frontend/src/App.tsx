@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { logoutAdmin, verifySession } from "./api/auth";
-import { calculateNetIncome, fetchReportTimeline, fetchReportTimelines } from "./api/client";
+import { calculateNetIncome, deleteReportTimeline, fetchReportTimeline, fetchReportTimelines } from "./api/client";
 import { Dashboard } from "./components/Dashboard";
 import { LoginPage } from "./components/LoginPage";
 import { MissingCommissionPanel } from "./components/MissingCommissionPanel";
@@ -55,6 +55,7 @@ export default function App() {
   const [databaseConfigured, setDatabaseConfigured] = useState(false);
   const [activeTimelineId, setActiveTimelineId] = useState<string | null>(null);
   const [loadingTimelineId, setLoadingTimelineId] = useState<string | null>(null);
+  const [deletingTimelineId, setDeletingTimelineId] = useState<string | null>(null);
   const tabsBarRef = useRef<HTMLDivElement>(null);
   const lossBannerRef = useRef<HTMLDivElement>(null);
   const resultGenerationRef = useRef(0);
@@ -112,6 +113,37 @@ export default function App() {
     setShowLossBanner(false);
     setHighlightLossesTab(false);
     setActiveTab(response.orders.length > 0 ? "orders" : "products");
+  }
+
+  async function handleDeleteTimeline(timelineId: string) {
+    const timeline = timelines.find((t) => t.id === timelineId);
+    const label = timeline?.period_label ?? "this period";
+    if (
+      !window.confirm(
+        `Delete "${label}" from Supabase?\n\nThis removes the saved report, orders, products, and summary for that period. This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingTimelineId(timelineId);
+    setError(null);
+    try {
+      await deleteReportTimeline(timelineId);
+      if (activeTimelineId === timelineId) {
+        setResult(null);
+        setActiveTimelineId(null);
+      }
+      await refreshTimelines();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      if (message.includes("sign in again")) {
+        setAuthState("guest");
+      }
+    } finally {
+      setDeletingTimelineId(null);
+    }
   }
 
   async function handleSelectTimeline(timelineId: string) {
@@ -293,8 +325,10 @@ export default function App() {
           activeTimelineId={activeTimelineId}
           loading={timelinesLoading}
           loadingTimelineId={loadingTimelineId}
+          deletingTimelineId={deletingTimelineId}
           databaseConfigured={databaseConfigured}
           onSelect={(id) => void handleSelectTimeline(id)}
+          onDelete={(id) => void handleDeleteTimeline(id)}
         />
 
         <UploadPanel
