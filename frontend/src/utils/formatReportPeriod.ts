@@ -1,4 +1,4 @@
-import type { CalculationSummary } from "../types";
+import type { CalculationSummary, ReportTimeline } from "../types";
 
 function parseIsoDate(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
@@ -37,4 +37,29 @@ export function formatReportPeriod(summary: CalculationSummary): string | null {
     }
   }
   return null;
+}
+
+/** Display date/period label for a saved timeline card or comparison column. */
+export function formatTimelinePeriod(timeline: ReportTimeline): string {
+  if (timeline.period_label?.trim()) {
+    return timeline.period_label.trim();
+  }
+  if (timeline.period_start && timeline.period_end) {
+    const start = parseIsoDate(timeline.period_start);
+    const end = parseIsoDate(timeline.period_end);
+    if (start && end) {
+      return formatDateRange(start, end);
+    }
+  }
+  if (timeline.created_at) {
+    const date = new Date(timeline.created_at);
+    if (!Number.isNaN(date.getTime())) {
+      return new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(date);
+    }
+  }
+  return "—";
 }

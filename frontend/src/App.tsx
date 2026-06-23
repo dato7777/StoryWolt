@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { logoutAdmin, verifySession } from "./api/auth";
 import { calculateNetIncome, deleteReportTimeline, fetchReportTimeline, fetchReportTimelines } from "./api/client";
 import { Dashboard } from "./components/Dashboard";
@@ -12,10 +12,12 @@ import { TimelinePicker } from "./components/TimelinePicker";
 import { DeleteTimelineConfirmDialog } from "./components/DeleteTimelineConfirmDialog";
 import { LanguageToggle } from "./components/LanguageToggle";
 import { UploadPanel } from "./components/UploadPanel";
-import { WelcomeSplash } from "./components/WelcomeSplash";
+import { PeriodTotalsComparison, type ComparisonEntry } from "./components/PeriodTotalsComparison";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
 import { useI18n } from "./i18n/LanguageContext";
-import type { CalculationResponse, ReportTimeline, UploadFiles } from "./types";
+import { WelcomeSplash } from "./components/WelcomeSplash";
+import { formatTimelinePeriod } from "./utils/formatReportPeriod";
+import type { CalculationResponse, CalculationSummary, ReportTimeline, UploadFiles } from "./types";
 
 type TabId = "orders" | "products" | "losses";
 type AuthState = "checking" | "guest" | "welcoming" | "authenticated";
@@ -62,6 +64,12 @@ export default function App() {
   const [loadingTimelineId, setLoadingTimelineId] = useState<string | null>(null);
   const [deletingTimelineId, setDeletingTimelineId] = useState<string | null>(null);
   const [deletePendingTimeline, setDeletePendingTimeline] = useState<ReportTimeline | null>(null);
+  const [compareTimelineIds, setCompareTimelineIds] = useState<string[]>([]);
+  const [compareSummaryCache, setCompareSummaryCache] = useState<
+    Record<string, CalculationSummary>
+  >({});
+  const [compareLoadingIds, setCompareLoadingIds] = useState<Set<string>>(new Set());
+  const [compareErrors, setCompareErrors] = useState<Record<string, string>>({});
   const tabsBarRef = useRef<HTMLDivElement>(null);
   const lossBannerRef = useRef<HTMLDivElement>(null);
   const resultGenerationRef = useRef(0);
@@ -107,6 +115,92 @@ export default function App() {
     void refreshTimelines();
   }, [authState, refreshTimelines]);
 
+  const comparisonEntries = useMemo((): ComparisonEntry[] => {
+    const entries: Array<ComparisonEntry & { sortKey: string }> = [];
+
+    for (const id of compareTimelineIds) {
+      const timeline = timelines.find((item) => item.id === id);
+      if (!timeline) continue;
+      entries.push({
+        timelineId: id,
+        periodDate: formatTimelinePeriod(timeline),
+        summary: compareSummaryCache[id] ?? null,
+        loading: compareLoadingIds.has(id),
+        error: compareErrors[id],
+        sortKey: timeline.period_start ?? timeline.created_at ?? "",
+      });
+    }
+
+    entries.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    return entries.map(({ sortKey: _ignored, ...entry }) => entry);
+  }, [
+    compareTimelineIds,
+    timelines,
+    compareSummaryCache,
+    compareLoadingIds,
+    compareErrors,
+  ]);
+
+  const showComparison = comparisonEntries.length >= 2;
+
+  useEffect(() => {
+    if (!showComparison) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById("period-totals-comparison")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [showComparison, comparisonEntries.length]);
+
+  const handleToggleCompare = useCallback(
+    async (timelineId: string) => {
+      if (compareTimelineIds.includes(timelineId)) {
+        setCompareTimelineIds((prev) => prev.filter((id) => id !== timelineId));
+        setCompareErrors((prev) => {
+          const next = { ...prev };
+          delete next[timelineId];
+          return next;
+        });
+        return;
+      }
+
+      setCompareTimelineIds((prev) => [...prev, timelineId]);
+
+      if (compareSummaryCache[timelineId]) return;
+
+      setCompareLoadingIds((prev) => new Set(prev).add(timelineId));
+      setCompareErrors((prev) => {
+        const next = { ...prev };
+        delete next[timelineId];
+        return next;
+      });
+
+      try {
+        const response = await fetchReportTimeline(timelineId);
+        setCompareSummaryCache((prev) => ({
+          ...prev,
+          [timelineId]: response.summary,
+        }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        setCompareErrors((prev) => ({ ...prev, [timelineId]: message }));
+        setCompareTimelineIds((prev) => prev.filter((id) => id !== timelineId));
+        if (message.includes("sign in again")) {
+          setAuthState("guest");
+        }
+      } finally {
+        setCompareLoadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(timelineId);
+          return next;
+        });
+      }
+    },
+    [compareTimelineIds, compareSummaryCache],
+  );
+
   function applyDashboardResult(
     response: CalculationResponse,
     timelineId: string | null,
@@ -146,6 +240,12 @@ export default function App() {
         setResult(null);
         setActiveTimelineId(null);
       }
+      setCompareTimelineIds((prev) => prev.filter((id) => id !== timelineId));
+      setCompareSummaryCache((prev) => {
+        const next = { ...prev };
+        delete next[timelineId];
+        return next;
+      });
       setDeletePendingTimeline(null);
       await refreshTimelines();
     } catch (err) {
@@ -161,6 +261,18 @@ export default function App() {
   }
 
   async function handleSelectTimeline(timelineId: string) {
+    if (activeTimelineId === timelineId && result) {
+      resultGenerationRef.current += 1;
+      clearLossSequenceTimers();
+      setResult(null);
+      setActiveTimelineId(null);
+      setError(null);
+      setIncludeAllocatedAdCost(false);
+      setShowLossBanner(false);
+      setHighlightLossesTab(false);
+      return;
+    }
+
     setLoadingTimelineId(timelineId);
     setError(null);
     try {
@@ -342,12 +454,15 @@ export default function App() {
         <TimelinePicker
           timelines={timelines}
           activeTimelineId={activeTimelineId}
+          compareTimelineIds={compareTimelineIds}
+          compareLoadingIds={compareLoadingIds}
           loading={timelinesLoading}
           loadingTimelineId={loadingTimelineId}
           deletingTimelineId={deletingTimelineId}
           databaseConfigured={databaseConfigured}
           onSelect={(id) => void handleSelectTimeline(id)}
           onDelete={(id) => handleRequestDeleteTimeline(id)}
+          onToggleCompare={(id) => void handleToggleCompare(id)}
         />
 
         {deletePendingTimeline && (
@@ -372,12 +487,21 @@ export default function App() {
           </div>
         )}
 
+        {showComparison && !result && (
+          <section className="analytics-shell">
+            <div className="space-y-6 p-5 sm:p-8">
+              <PeriodTotalsComparison entries={comparisonEntries} />
+            </div>
+          </section>
+        )}
+
         {result && (
           <>
             <Dashboard
               summary={result.summary}
               includeAllocatedAdCost={includeAllocatedAdCost}
               onHeroCascadeComplete={handleHeroCascadeComplete}
+              comparisonEntries={showComparison ? comparisonEntries : undefined}
             />
 
             {(result.summary.rejected_order_count ?? 0) > 0 && (

@@ -8,12 +8,15 @@ import type { ReportTimeline } from "../types";
 interface TimelinePickerProps {
   timelines: ReportTimeline[];
   activeTimelineId: string | null;
+  compareTimelineIds: string[];
+  compareLoadingIds: Set<string>;
   loading: boolean;
   loadingTimelineId: string | null;
   deletingTimelineId: string | null;
   databaseConfigured: boolean;
   onSelect: (timelineId: string) => void;
   onDelete: (timelineId: string) => void;
+  onToggleCompare: (timelineId: string) => void;
 }
 
 const STAGGER_MS = 380;
@@ -43,12 +46,15 @@ function formatSavedDate(iso: string | null): string {
 export function TimelinePicker({
   timelines,
   activeTimelineId,
+  compareTimelineIds,
+  compareLoadingIds,
   loading,
   loadingTimelineId,
   deletingTimelineId,
   databaseConfigured,
   onSelect,
   onDelete,
+  onToggleCompare,
 }: TimelinePickerProps) {
   const { t } = useI18n();
 
@@ -180,6 +186,23 @@ export function TimelinePicker({
             0 20px 56px rgba(99, 102, 241, 0.5);
           transform: translateY(-2px) scale(1.01);
         }
+
+        .timeline-card-compare-selected {
+          box-shadow:
+            inset 0 0 0 2px rgba(34, 211, 238, 0.75),
+            inset 0 1px 0 rgba(255, 255, 255, 0.06),
+            0 0 0 1px rgba(34, 211, 238, 0.08),
+            0 8px 32px rgba(0, 0, 0, 0.35);
+        }
+
+        .timeline-card-active.timeline-card-compare-selected {
+          box-shadow:
+            inset 0 0 0 2px rgba(186, 230, 253, 0.95),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2),
+            0 0 0 1px rgba(196, 181, 253, 0.4),
+            0 0 40px rgba(34, 211, 238, 0.35),
+            0 16px 48px rgba(79, 70, 229, 0.45);
+        }
       `}</style>
 
       <div
@@ -213,6 +236,8 @@ export function TimelinePicker({
           const isActive = activeTimelineId === timeline.id;
           const isLoading = loadingTimelineId === timeline.id;
           const isDeleting = deletingTimelineId === timeline.id;
+          const isComparing = compareTimelineIds.includes(timeline.id);
+          const isCompareLoading = compareLoadingIds.has(timeline.id);
 
           return (
             <div
@@ -226,9 +251,9 @@ export function TimelinePicker({
                 type="button"
                 disabled={busy}
                 onClick={() => onSelect(timeline.id)}
-                className={`relative w-full overflow-hidden rounded-2xl border px-4 py-4 pr-10 text-left transition-all duration-500 ease-out ${
+                className={`relative w-full overflow-hidden rounded-2xl border px-4 py-4 pb-11 pr-10 text-left transition-all duration-500 ease-out ${
                   isActive ? "timeline-card-active text-white" : "timeline-card-idle text-slate-100"
-                } ${isLoading ? "opacity-80" : ""}`}
+                } ${isComparing ? "timeline-card-compare-selected" : ""} ${isLoading ? "opacity-80" : ""}`}
               >
                 <div
                   className="timeline-shimmer pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-transparent via-white/20 to-transparent"
@@ -318,6 +343,42 @@ export function TimelinePicker({
 
               <button
                 type="button"
+                title={isComparing ? t("timeline.compareRemoveTitle") : t("timeline.compareTitle")}
+                disabled={busy || isCompareLoading}
+                aria-label={t("timeline.compareAria", { label: timeline.period_label })}
+                aria-pressed={isComparing}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggleCompare(timeline.id);
+                }}
+                className={`absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-lg border transition-all duration-300 ${
+                  isComparing
+                    ? "border-cyan-400/60 bg-cyan-500/30 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.4)]"
+                    : isActive
+                      ? "border-white/20 bg-white/10 text-white hover:border-cyan-400/60 hover:bg-cyan-500/40 hover:shadow-[0_0_16px_rgba(34,211,238,0.35)]"
+                      : "border-slate-600/50 bg-slate-900/60 text-slate-500 hover:border-cyan-400/50 hover:bg-cyan-950/80 hover:text-cyan-300 hover:shadow-[0_0_14px_rgba(34,211,238,0.3)]"
+                } disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                {isCompareLoading ? (
+                  <span className="text-[10px] font-bold">…</span>
+                ) : (
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <rect x="3" y="3" width="8" height="8" rx="1" />
+                    <rect x="13" y="13" width="8" height="8" rx="1" />
+                    <path d="M11 7h6M7 11v6" />
+                  </svg>
+                )}
+              </button>
+
+              <button
+                type="button"
                 title={t("timeline.deleteTitle")}
                 disabled={busy}
                 aria-label={t("timeline.deleteAria", { label: timeline.period_label })}
@@ -349,6 +410,19 @@ export function TimelinePicker({
             </div>
           );
         })}
+      </div>
+
+      <div className="relative mt-4 min-h-5 text-center">
+        {compareTimelineIds.length === 1 && (
+          <p className="text-xs font-medium text-cyan-200/70">
+            {t("compare.selectMore")}
+          </p>
+        )}
+        {compareTimelineIds.length >= 2 && (
+          <p className="text-xs font-semibold text-cyan-300/90">
+            {t("compare.subtitle", { count: compareTimelineIds.length })}
+          </p>
+        )}
       </div>
     </section>
   );

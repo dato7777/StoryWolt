@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PeriodTotalsComparison, type ComparisonEntry } from "./PeriodTotalsComparison";
 import { CountUpCurrency } from "./CountUpCurrency";
 import { useI18n } from "../i18n/LanguageContext";
 import type { CalculationSummary } from "../types";
@@ -12,6 +13,7 @@ interface DashboardProps {
   summary: CalculationSummary;
   includeAllocatedAdCost?: boolean;
   onHeroCascadeComplete?: () => void;
+  comparisonEntries?: ComparisonEntry[];
 }
 
 function formatIls(n: number | null | undefined): string {
@@ -306,8 +308,16 @@ export function Dashboard({
   summary,
   includeAllocatedAdCost = false,
   onHeroCascadeComplete,
+  comparisonEntries,
 }: DashboardProps) {
   const { t } = useI18n();
+  const showComparison = (comparisonEntries?.length ?? 0) >= 2;
+
+  useEffect(() => {
+    if (!showComparison) return;
+    const timer = window.setTimeout(() => onHeroCascadeComplete?.(), 500);
+    return () => window.clearTimeout(timer);
+  }, [showComparison, comparisonEntries, onHeroCascadeComplete]);
   const hasWoltSummary = summary.wolt_summary_gross_goods != null;
   const reportPeriod = formatReportPeriod(summary);
   const selfCost = summary.total_product_self_cost ?? 0;
@@ -510,14 +520,22 @@ export function Dashboard({
         <div id="period-totals" className="analytics-section scroll-mt-24 border-indigo-100/80 bg-gradient-to-b from-white/90 to-indigo-50/20">
           <SectionHeader
             title={t("dashboard.periodTotals")}
-            subtitle={t("dashboard.periodTotalsHint")}
+            subtitle={
+              showComparison
+                ? t("compare.subtitle", { count: comparisonEntries!.length })
+                : t("dashboard.periodTotalsHint")
+            }
             accent="bg-gradient-to-b from-indigo-500 to-violet-400"
           />
-          <MainHeroCascade
-            steps={heroSteps}
-            onComplete={onHeroCascadeComplete}
-            uploadLabel={t("common.uploadStandardSummary")}
-          />
+          {showComparison ? (
+            <PeriodTotalsComparison entries={comparisonEntries!} embedded />
+          ) : (
+            <MainHeroCascade
+              steps={heroSteps}
+              onComplete={onHeroCascadeComplete}
+              uploadLabel={t("common.uploadStandardSummary")}
+            />
+          )}
         </div>
 
         {/* Money flow */}
