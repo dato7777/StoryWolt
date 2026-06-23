@@ -36,6 +36,10 @@ class handler(BaseHTTPRequestHandler):
             handlers.handle_calculate_get(self)
         elif path == "/api/timelines":
             handlers.handle_timelines_list_get(self)
+        elif path == "/api/analytics/period":
+            handlers.handle_analytics_period_get(self)
+        elif path == "/api/analytics/overall":
+            handlers.handle_analytics_overall_get(self)
         elif path.startswith("/api/timelines/"):
             timeline_id = path.removeprefix("/api/timelines/").strip("/")
             if timeline_id:

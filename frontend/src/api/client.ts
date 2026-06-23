@@ -2,7 +2,12 @@
  * API client for the serverless Python backend.
  */
 
-import type { CalculationResponse, ReportTimeline } from "../types";
+import type {
+  CalculationResponse,
+  OverallAnalyticsResponse,
+  PeriodAnalyticsResponse,
+  ReportTimeline,
+} from "../types";
 import { authHeaders, logoutAdmin } from "./auth";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -131,4 +136,49 @@ export async function deleteReportTimeline(timelineId: string): Promise<void> {
   }
 
   await parseApiResponse(response);
+}
+
+export interface AnalyticsQuery {
+  sort?: string;
+  limit?: number;
+  ranking?: string;
+}
+
+function buildAnalyticsQuery(params: AnalyticsQuery): string {
+  const search = new URLSearchParams();
+  if (params.sort) search.set("sort", params.sort);
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.ranking) search.set("ranking", params.ranking);
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/** Per-timeline product performance analytics. */
+export async function fetchPeriodAnalytics(
+  timelineId: string,
+  params: AnalyticsQuery = {},
+): Promise<PeriodAnalyticsResponse> {
+  const search = new URLSearchParams();
+  search.set("timeline_id", timelineId);
+  if (params.sort) search.set("sort", params.sort);
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.ranking) search.set("ranking", params.ranking);
+
+  const response = await fetch(`${API_BASE}/api/analytics/period?${search}`, {
+    headers: authHeaders(),
+  });
+  const body = await parseApiResponse(response);
+  return body as unknown as PeriodAnalyticsResponse;
+}
+
+/** Lifetime product performance across all saved timelines. */
+export async function fetchOverallAnalytics(
+  params: AnalyticsQuery = {},
+): Promise<OverallAnalyticsResponse> {
+  const response = await fetch(
+    `${API_BASE}/api/analytics/overall${buildAnalyticsQuery(params)}`,
+    { headers: authHeaders() },
+  );
+  const body = await parseApiResponse(response);
+  return body as unknown as OverallAnalyticsResponse;
 }

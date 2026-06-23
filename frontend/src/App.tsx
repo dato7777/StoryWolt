@@ -13,6 +13,7 @@ import { DeleteTimelineConfirmDialog } from "./components/DeleteTimelineConfirmD
 import { LanguageToggle } from "./components/LanguageToggle";
 import { UploadPanel } from "./components/UploadPanel";
 import { PeriodTotalsComparison, type ComparisonEntry } from "./components/PeriodTotalsComparison";
+import { ProductAnalytics } from "./components/ProductAnalytics";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
 import { useI18n } from "./i18n/LanguageContext";
 import { WelcomeSplash } from "./components/WelcomeSplash";
@@ -428,6 +429,20 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <LanguageToggle />
+            {databaseConfigured && (
+              <button
+                type="button"
+                onClick={() => {
+                  document.getElementById("product-analytics")?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                }}
+                className="hidden rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-800 transition hover:bg-violet-100 sm:inline-flex sm:px-4 sm:py-2 sm:text-sm"
+              >
+                {t("analytics.jumpToAnalytics")}
+              </button>
+            )}
             {result && (
               <div className="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 sm:flex sm:px-4 sm:py-2">
                 <span className="h-2 w-2 animate-shimmer rounded-full bg-emerald-500" />
@@ -473,6 +488,12 @@ export default function App() {
             onCancel={handleCancelDeleteTimeline}
           />
         )}
+
+        <ProductAnalytics
+          timelines={timelines}
+          activeTimelineId={activeTimelineId}
+          databaseConfigured={databaseConfigured}
+        />
 
         <UploadPanel
           files={files}

@@ -200,6 +200,18 @@ create table if not exists report_missing_commission_products (
 create index if not exists idx_report_missing_commission_timeline
   on report_missing_commission_products (timeline_id, sort_order);
 
+create index if not exists idx_report_product_rows_sku
+  on report_product_rows (timeline_id, merchant_sku);
+
+create index if not exists idx_report_product_rows_status
+  on report_product_rows (timeline_id, status);
+
+create index if not exists idx_report_order_line_items_sku
+  on report_order_line_items (merchant_sku);
+
+create index if not exists idx_report_order_line_items_order_sku
+  on report_order_line_items (order_id, merchant_sku);
+
 -- ---------------------------------------------------------------------------
 -- Row Level Security (optional — service role bypasses; enable for direct client)
 -- ---------------------------------------------------------------------------

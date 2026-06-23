@@ -188,3 +188,72 @@ export interface ReportTimeline {
   has_wolt_summary: boolean;
   wolt_payout: number | null;
 }
+
+export interface PeriodProductMetric {
+  product_key: string;
+  item_name: string;
+  merchant_sku: string;
+  total_quantity: number;
+  total_revenue: number;
+  total_net_profit: number;
+  has_profit_data: boolean;
+  sales_velocity: number;
+  growth_quantity_pct: number | null;
+  growth_revenue_pct: number | null;
+  growth_profit_pct: number | null;
+  previous_quantity: number | null;
+  previous_revenue: number | null;
+  previous_net_profit: number | null;
+}
+
+export interface OverallProductMetric {
+  product_key: string;
+  item_name: string;
+  merchant_sku: string;
+  lifetime_quantity: number;
+  lifetime_revenue: number;
+  lifetime_profit: number;
+  has_profit_data: boolean;
+  orders_with_product: number;
+  total_order_count: number;
+  order_penetration_pct: number;
+  consistency_score: number;
+}
+
+export interface PeriodAnalyticsResponse {
+  analysis_type: "period";
+  timeline: {
+    id: string;
+    period_label: string;
+    period_start: string | null;
+    period_end: string | null;
+  };
+  period_days: number;
+  previous_timeline_id: string | null;
+  product_count: number;
+  sort: string;
+  limit: number;
+  products: PeriodProductMetric[];
+  rankings: {
+    top_quantity: PeriodProductMetric[];
+    top_revenue: PeriodProductMetric[];
+    top_profit: PeriodProductMetric[];
+    fastest_growing: PeriodProductMetric[];
+  };
+}
+
+export interface OverallAnalyticsResponse {
+  analysis_type: "overall";
+  timeline_count: number;
+  product_count: number;
+  sort: string;
+  limit: number;
+  products: OverallProductMetric[];
+  rankings: {
+    top_profit: OverallProductMetric[];
+    top_revenue: OverallProductMetric[];
+    top_quantity: OverallProductMetric[];
+    top_penetration: OverallProductMetric[];
+    most_consistent: OverallProductMetric[];
+  };
+}

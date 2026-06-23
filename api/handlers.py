@@ -6,6 +6,7 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from auth_utils import (
     create_session_token,
@@ -23,6 +24,7 @@ from db_repository import (
     load_report_timeline,
     save_report_timeline,
 )
+from analytics_service import get_overall_analytics, get_period_analytics, parse_limit
 from supabase_client import is_db_configured
 
 CORS_HEADERS = (
@@ -211,6 +213,64 @@ def handle_timeline_get(handler: BaseHTTPRequestHandler, timeline_id: str) -> No
         send_json(handler, 404, {"error": str(exc)})
     except Exception as exc:
         send_json(handler, 500, {"error": f"Failed to load timeline: {exc}"})
+
+
+def _query_params(handler: BaseHTTPRequestHandler) -> dict[str, str]:
+    parsed = urlparse(handler.path)
+    raw = parse_qs(parsed.query, keep_blank_values=False)
+    return {key: values[0] for key, values in raw.items() if values}
+
+
+def handle_analytics_period_get(handler: BaseHTTPRequestHandler) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    if not is_db_configured():
+        send_json(handler, 503, {"error": "Database not configured."})
+        return
+
+    params = _query_params(handler)
+    timeline_id = params.get("timeline_id", "").strip()
+    if not timeline_id:
+        send_json(handler, 400, {"error": "timeline_id query parameter is required."})
+        return
+
+    try:
+        result = get_period_analytics(
+            timeline_id,
+            sort=params.get("sort"),
+            limit=parse_limit(params.get("limit")),
+            ranking=params.get("ranking"),
+        )
+        send_json(handler, 200, result)
+    except ValueError as exc:
+        send_json(handler, 404 if "not found" in str(exc).lower() else 400, {"error": str(exc)})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Period analytics failed: {exc}"})
+
+
+def handle_analytics_overall_get(handler: BaseHTTPRequestHandler) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    if not is_db_configured():
+        send_json(handler, 503, {"error": "Database not configured."})
+        return
+
+    params = _query_params(handler)
+    try:
+        result = get_overall_analytics(
+            sort=params.get("sort"),
+            limit=parse_limit(params.get("limit")),
+            ranking=params.get("ranking"),
+        )
+        send_json(handler, 200, result)
+    except ValueError as exc:
+        send_json(handler, 400, {"error": str(exc)})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Overall analytics failed: {exc}"})
 
 
 def handle_timeline_delete(handler: BaseHTTPRequestHandler, timeline_id: str) -> None:
