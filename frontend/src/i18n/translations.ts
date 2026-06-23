@@ -44,6 +44,31 @@ const en = {
     analytics: "Product analytics",
     toStoryPhone: "To StoryPhone",
   },
+  backgroundTheme: {
+    label: "Page background",
+    toggle: "Choose background style",
+    hint: "Preview each preset — your choice is saved in this browser.",
+    "frosted-saas": {
+      short: "Ocean",
+      name: "Ocean Wave",
+      description: "Cyan & teal base with waves, rings, and bubble dots.",
+    },
+    "warm-paper": {
+      short: "Sunset",
+      name: "Sunset Bloom",
+      description: "Peach, coral & rose with bold blobs and diagonal stripes.",
+    },
+    "aurora-light": {
+      short: "Violet",
+      name: "Violet Circuit",
+      description: "Purple & fuchsia with electric grid, diamond, and light beam.",
+    },
+    "layered-depth": {
+      short: "Sage",
+      name: "Sage Terrace",
+      description: "Mint & lime with terrazzo dots, green arch, and per-page tints.",
+    },
+  },
   app: {
     dashboardTitle: "Wolt Net Income Dashboard",
     fromDato: "— From Dato",
@@ -349,6 +374,31 @@ const he: DeepStringRecord<typeof en> = {
     periodReport: "דוח תקופה",
     analytics: "אנליטיקת מוצרים",
     toStoryPhone: "לסטורי פון",
+  },
+  backgroundTheme: {
+    label: "רקע העמוד",
+    toggle: "בחירת סגנון רקע",
+    hint: "תצוגה מקדימה לכל עיצוב — הבחירה נשמרת בדפדפן.",
+    "frosted-saas": {
+      short: "אוקיינוס",
+      name: "Ocean Wave",
+      description: "בסיס ציאן וטורקיז עם גלים, טבעות ונקודות בועה.",
+    },
+    "warm-paper": {
+      short: "שקיעה",
+      name: "Sunset Bloom",
+      description: "אפרסק, קורל וורוד עם כתמים גדולים ופסים אלכסוניים.",
+    },
+    "aurora-light": {
+      short: "סגול",
+      name: "Violet Circuit",
+      description: "סגול ופוקסיה עם רשת חשמלית, מעוין וקרן אור.",
+    },
+    "layered-depth": {
+      short: "ירוק",
+      name: "Sage Terrace",
+      description: "מנטה וליים עם טרצו, קשת ירוקה וגוון שונה לכל עמוד.",
+    },
   },
   app: {
     dashboardTitle: "לוח בקרה — הכנסה נטו Wolt",

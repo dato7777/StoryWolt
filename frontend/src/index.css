@@ -12,13 +12,45 @@
   body {
     @apply min-h-screen font-sans text-base font-medium text-ink antialiased;
     background-color: #e8eef8;
-    background-image:
-      radial-gradient(ellipse 120% 80% at 10% -10%, rgba(99, 102, 241, 0.18), transparent 52%),
-      radial-gradient(ellipse 90% 60% at 95% 0%, rgba(14, 165, 233, 0.16), transparent 48%),
-      radial-gradient(ellipse 70% 50% at 50% 105%, rgba(167, 139, 250, 0.14), transparent 55%),
-      radial-gradient(ellipse 40% 35% at 80% 75%, rgba(251, 191, 36, 0.08), transparent 50%),
-      linear-gradient(168deg, #eef2fb 0%, #f4f7fd 32%, #f8faff 58%, #e9eff9 100%);
     background-attachment: fixed;
+    transition: background-color 0.45s ease, background-image 0.45s ease;
+  }
+
+  /* ═══ Theme 1: Ocean Wave (frosted-saas) — cyan/teal + waves + rings ═══ */
+  html[data-bg-theme="frosted-saas"] body,
+  html:not([data-bg-theme]) body {
+    background-color: #a5f3fc;
+    background-image:
+      radial-gradient(ellipse 70% 55% at 100% 0%, rgba(14, 165, 233, 0.55), transparent 58%),
+      radial-gradient(ellipse 60% 50% at 0% 100%, rgba(20, 184, 166, 0.45), transparent 55%),
+      linear-gradient(160deg, #67e8f9 0%, #cffafe 38%, #e0f2fe 68%, #bae6fd 100%);
+  }
+
+  /* ═══ Theme 2: Sunset Bloom (warm-paper) — coral/peach/rose + stripes ═══ */
+  html[data-bg-theme="warm-paper"] body {
+    background-color: #ffedd5;
+    background-image:
+      radial-gradient(ellipse 75% 60% at 0% 0%, rgba(251, 146, 60, 0.55), transparent 58%),
+      radial-gradient(ellipse 65% 55% at 100% 100%, rgba(244, 63, 94, 0.4), transparent 55%),
+      linear-gradient(145deg, #fed7aa 0%, #ffedd5 35%, #fff1f2 70%, #fecaca 100%);
+  }
+
+  /* ═══ Theme 3: Violet Circuit (aurora-light) — purple/fuchsia + lattice ═══ */
+  html[data-bg-theme="aurora-light"] body {
+    background-color: #f3e8ff;
+    background-image:
+      radial-gradient(ellipse 80% 65% at 90% 10%, rgba(192, 38, 211, 0.45), transparent 58%),
+      radial-gradient(ellipse 70% 55% at 5% 90%, rgba(139, 92, 246, 0.5), transparent 55%),
+      linear-gradient(135deg, #e9d5ff 0%, #f3e8ff 40%, #fae8ff 75%, #f5d0fe 100%);
+  }
+
+  /* ═══ Theme 4: Sage Terrace (layered-depth) — mint/lime + terrazzo ═══ */
+  html[data-bg-theme="layered-depth"] body {
+    background-color: #d9f99d;
+    background-image:
+      radial-gradient(ellipse 70% 55% at 50% 0%, rgba(74, 222, 128, 0.45), transparent 58%),
+      radial-gradient(ellipse 60% 50% at 100% 80%, rgba(163, 230, 53, 0.4), transparent 52%),
+      linear-gradient(175deg, #ecfccb 0%, #f7fee7 45%, #d9f99d 100%);
   }
 
   h1, h2, h3 {
@@ -31,27 +63,387 @@
     @apply relative min-h-screen overflow-x-hidden;
   }
 
-  .page-shell::before {
+  /* Ocean Wave — rolling wave band + bubble dots */
+  html[data-bg-theme="frosted-saas"] .page-shell::before,
+  html:not([data-bg-theme]) .page-shell::before {
+    content: "";
+    @apply pointer-events-none fixed inset-x-0 bottom-0 -z-10 h-[45vh];
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320' preserveAspectRatio='none'%3E%3Cpath fill='%2306b6d4' fill-opacity='0.18' d='M0,192L48,197.3C96,203,192,213,288,229.3C384,245,480,267,576,250.7C672,235,768,181,864,181.3C960,181,1056,235,1152,234.7C1248,235,1344,181,1392,154.7L1440,128L1440,320L0,320Z'/%3E%3Cpath fill='%2314b8a6' fill-opacity='0.12' d='M0,256L48,261.3C96,267,192,277,288,272C384,267,480,245,576,245.3C672,245,768,267,864,261.3C960,256,1056,224,1152,213.3C1248,203,1344,213,1392,218.7L1440,224L1440,320L0,320Z'/%3E%3C/svg%3E");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    background-position: bottom;
+  }
+
+  html[data-bg-theme="frosted-saas"] .page-shell::after,
+  html:not([data-bg-theme]) .page-shell::after {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background-image: radial-gradient(circle, rgba(6, 182, 212, 0.14) 1.5px, transparent 1.5px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 25%, transparent 72%);
+  }
+
+  /* Sunset Bloom — bold diagonal stripes */
+  html[data-bg-theme="warm-paper"] .page-shell::before {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background: repeating-linear-gradient(
+      -38deg,
+      transparent,
+      transparent 48px,
+      rgba(251, 146, 60, 0.09) 48px,
+      rgba(251, 146, 60, 0.09) 52px
+    );
+    mask-image: radial-gradient(ellipse 95% 85% at 50% 45%, black 30%, transparent 75%);
+  }
+
+  html[data-bg-theme="warm-paper"] .page-shell::after {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background-image: radial-gradient(circle, rgba(244, 63, 94, 0.12) 2px, transparent 2px);
+    background-size: 36px 36px;
+  }
+
+  /* Violet Circuit — electric grid */
+  html[data-bg-theme="aurora-light"] .page-shell::before {
     content: "";
     @apply pointer-events-none fixed inset-0 -z-10;
     background-image:
-      linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
-    background-size: 40px 40px;
-    mask-image: radial-gradient(ellipse 85% 75% at 50% 35%, black 20%, transparent 75%);
+      linear-gradient(rgba(168, 85, 247, 0.14) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(168, 85, 247, 0.14) 1px, transparent 1px);
+    background-size: 32px 32px;
   }
 
-  .page-shell::after {
+  html[data-bg-theme="aurora-light"] .page-shell::after {
     content: "";
     @apply pointer-events-none fixed inset-0 -z-10;
-    background:
-      radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.55), transparent 28%),
-      radial-gradient(circle at 85% 15%, rgba(255, 255, 255, 0.4), transparent 24%),
-      radial-gradient(circle at 60% 90%, rgba(255, 255, 255, 0.35), transparent 30%);
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 20px,
+      rgba(217, 70, 239, 0.06) 20px,
+      rgba(217, 70, 239, 0.06) 22px
+    );
+    mask-image: radial-gradient(ellipse 85% 75% at 50% 50%, black 20%, transparent 70%);
+  }
+
+  /* Sage Terrace — terrazzo dot field */
+  html[data-bg-theme="layered-depth"] .page-shell::before {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(34, 197, 94, 0.2) 3px, transparent 3px),
+      radial-gradient(circle at 70% 60%, rgba(132, 204, 22, 0.18) 2px, transparent 2px),
+      radial-gradient(circle at 45% 80%, rgba(74, 222, 128, 0.15) 2.5px, transparent 2.5px);
+    background-size: 48px 48px, 64px 64px, 56px 56px;
+  }
+
+  html[data-bg-theme="layered-depth"] .page-shell::after {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 120px,
+      rgba(74, 222, 128, 0.07) 120px,
+      rgba(74, 222, 128, 0.07) 124px
+    );
+  }
+
+  .bg-decor {
+    @apply pointer-events-none fixed inset-0 -z-[5] overflow-hidden;
+  }
+
+  .bg-shape {
+    @apply pointer-events-none absolute hidden;
+  }
+
+  /* Ocean decorative shapes */
+  html[data-bg-theme="frosted-saas"] .bg-deco-ocean-ring,
+  html:not([data-bg-theme]) .bg-deco-ocean-ring {
+    @apply block;
+    width: min(90vw, 36rem);
+    height: min(90vw, 36rem);
+    top: -12%;
+    right: -18%;
+    border-radius: 50%;
+    border: 3px solid rgba(6, 182, 212, 0.35);
+    box-shadow:
+      inset 0 0 60px rgba(6, 182, 212, 0.15),
+      0 0 80px rgba(14, 165, 233, 0.2);
+  }
+
+  html[data-bg-theme="frosted-saas"] .bg-deco-ocean-blob-tr,
+  html:not([data-bg-theme]) .bg-deco-ocean-blob-tr {
+    @apply block;
+    width: 22rem;
+    height: 22rem;
+    top: 8%;
+    right: 5%;
+    border-radius: 60% 40% 55% 45% / 45% 55% 45% 55%;
+    background: rgba(34, 211, 238, 0.35);
+    filter: blur(2px);
+  }
+
+  html[data-bg-theme="frosted-saas"] .bg-deco-ocean-blob-bl,
+  html:not([data-bg-theme]) .bg-deco-ocean-blob-bl {
+    @apply block;
+    width: 28rem;
+    height: 28rem;
+    bottom: 10%;
+    left: -8%;
+    border-radius: 45% 55% 40% 60% / 55% 45% 60% 40%;
+    background: rgba(20, 184, 166, 0.3);
+    filter: blur(4px);
+  }
+
+  /* Sunset decorative shapes */
+  html[data-bg-theme="warm-paper"] .bg-deco-sunset-blob-1 {
+    @apply block;
+    width: min(110vw, 42rem);
+    height: min(110vw, 42rem);
+    top: -25%;
+    left: -30%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251, 146, 60, 0.5) 0%, rgba(251, 146, 60, 0) 68%);
+  }
+
+  html[data-bg-theme="warm-paper"] .bg-deco-sunset-blob-2 {
+    @apply block;
+    width: 26rem;
+    height: 26rem;
+    bottom: 5%;
+    right: -6%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(244, 63, 94, 0.42) 0%, transparent 65%);
+  }
+
+  html[data-bg-theme="warm-paper"] .bg-deco-sunset-stripes {
+    @apply block;
+    width: 14rem;
+    height: 14rem;
+    top: 40%;
+    left: 8%;
+    border-radius: 2rem;
+    transform: rotate(-12deg);
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(251, 191, 36, 0.35),
+      rgba(251, 191, 36, 0.35) 12px,
+      rgba(255, 237, 213, 0.2) 12px,
+      rgba(255, 237, 213, 0.2) 24px
+    );
+    box-shadow: 0 20px 60px rgba(251, 146, 60, 0.2);
+  }
+
+  /* Violet decorative shapes */
+  html[data-bg-theme="aurora-light"] .bg-deco-violet-diamond {
+    @apply block;
+    width: 20rem;
+    height: 20rem;
+    top: 12%;
+    left: -5%;
+    transform: rotate(45deg);
+    border: 2px solid rgba(168, 85, 247, 0.35);
+    background: rgba(233, 213, 255, 0.25);
+    box-shadow: 0 0 100px rgba(192, 38, 211, 0.25);
+  }
+
+  html[data-bg-theme="aurora-light"] .bg-deco-violet-ring {
+    @apply block;
+    width: min(100vw, 50rem);
+    height: min(100vw, 50rem);
+    bottom: -35%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    border: 4px solid rgba(192, 38, 211, 0.3);
+    box-shadow: 0 0 120px rgba(168, 85, 247, 0.25);
+  }
+
+  html[data-bg-theme="aurora-light"] .bg-deco-violet-beam {
+    @apply block;
+    width: 8rem;
+    height: 140%;
+    top: -20%;
+    right: 18%;
+    transform: rotate(15deg);
+    background: linear-gradient(
+      180deg,
+      transparent,
+      rgba(217, 70, 239, 0.2) 30%,
+      rgba(168, 85, 247, 0.28) 50%,
+      rgba(217, 70, 239, 0.2) 70%,
+      transparent
+    );
+    filter: blur(8px);
+  }
+
+  /* Sage decorative shapes */
+  html[data-bg-theme="layered-depth"] .bg-deco-sage-arch {
+    @apply block;
+    width: min(100vw, 44rem);
+    height: 22rem;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    background: linear-gradient(180deg, rgba(134, 239, 172, 0.45) 0%, rgba(134, 239, 172, 0) 100%);
+  }
+
+  html[data-bg-theme="layered-depth"] .bg-deco-sage-blob {
+    @apply block;
+    width: 24rem;
+    height: 24rem;
+    top: 15%;
+    right: -8%;
+    border-radius: 63% 37% 54% 46% / 55% 48% 52% 45%;
+    background: rgba(163, 230, 53, 0.4);
+  }
+
+  html[data-bg-theme="layered-depth"] .bg-deco-sage-leaf {
+    @apply block;
+    width: 18rem;
+    height: 10rem;
+    top: 55%;
+    left: 5%;
+    border-radius: 0 80% 0 80%;
+    background: rgba(74, 222, 128, 0.35);
+    transform: rotate(-25deg);
+    filter: blur(1px);
+  }
+
+  .bg-orbs {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+  }
+
+  .bg-orbs .orb {
+    @apply hidden;
+  }
+
+  html[data-bg-theme="frosted-saas"] .orb-theme-ocean,
+  html:not([data-bg-theme]) .orb-theme-ocean {
+    @apply block;
+  }
+
+  html[data-bg-theme="warm-paper"] .orb-theme-sunset {
+    @apply block;
+  }
+
+  html[data-bg-theme="aurora-light"] .orb-theme-violet {
+    @apply block;
+  }
+
+  html[data-bg-theme="layered-depth"] .orb-theme-sage {
+    @apply block;
+  }
+
+  .main-canvas {
+    @apply relative;
+  }
+
+  html[data-bg-theme="layered-depth"] .main-canvas::before {
+    content: "";
+    @apply pointer-events-none absolute -inset-x-4 -top-2 bottom-0 -z-10 rounded-3xl;
+    transition: background 0.45s ease;
+  }
+
+  html[data-bg-theme="layered-depth"] .main-canvas[data-view="reports"]::before {
+    background: linear-gradient(
+      165deg,
+      rgba(187, 247, 208, 0.65) 0%,
+      rgba(220, 252, 231, 0.35) 45%,
+      transparent 85%
+    );
+  }
+
+  html[data-bg-theme="layered-depth"] .main-canvas[data-view="uploads"]::before {
+    background: linear-gradient(
+      165deg,
+      rgba(190, 242, 100, 0.55) 0%,
+      rgba(236, 252, 203, 0.3) 45%,
+      transparent 85%
+    );
+  }
+
+  html[data-bg-theme="layered-depth"] .main-canvas[data-view="report"]::before {
+    background: linear-gradient(
+      165deg,
+      rgba(134, 239, 172, 0.6) 0%,
+      rgba(209, 250, 229, 0.28) 45%,
+      transparent 85%
+    );
+  }
+
+  html[data-bg-theme="layered-depth"] .main-canvas[data-view="analytics"]::before {
+    background: linear-gradient(
+      165deg,
+      rgba(163, 230, 53, 0.5) 0%,
+      rgba(236, 252, 203, 0.3) 45%,
+      transparent 85%
+    );
+  }
+
+  .app-header {
+    @apply relative z-40 border-b backdrop-blur-2xl transition-colors duration-500;
+  }
+
+  html[data-bg-theme="frosted-saas"] .app-header,
+  html:not([data-bg-theme]) .app-header {
+    border-color: rgba(6, 182, 212, 0.35);
+    background: rgba(207, 250, 254, 0.78);
+  }
+
+  html[data-bg-theme="warm-paper"] .app-header {
+    border-color: rgba(251, 146, 60, 0.35);
+    background: rgba(255, 237, 213, 0.82);
+  }
+
+  html[data-bg-theme="aurora-light"] .app-header {
+    border-color: rgba(192, 38, 211, 0.3);
+    background: rgba(250, 232, 255, 0.8);
+  }
+
+  html[data-bg-theme="layered-depth"] .app-header {
+    border-color: rgba(74, 222, 128, 0.4);
+    background: rgba(220, 252, 231, 0.82);
+  }
+
+  .bg-theme-swatch-frosted {
+    background: linear-gradient(135deg, #22d3ee 0%, #2dd4bf 50%, #38bdf8 100%);
+  }
+
+  .bg-theme-swatch-warm {
+    background: linear-gradient(135deg, #fb923c 0%, #f43f5e 55%, #fcd34d 100%);
+  }
+
+  .bg-theme-swatch-aurora {
+    background: linear-gradient(135deg, #c026d3 0%, #a855f7 45%, #e879f9 100%);
+  }
+
+  .bg-theme-swatch-layered {
+    background: linear-gradient(135deg, #84cc16 0%, #4ade80 50%, #bef264 100%);
+  }
+
+  .bg-theme-picker-trigger {
+    border-color: rgba(203, 213, 225, 0.85);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 16px rgba(15, 23, 42, 0.06);
+  }
+
+  .bg-theme-picker-trigger:hover {
+    border-color: rgba(165, 180, 252, 0.65);
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .bg-theme-picker-menu {
+    border-color: rgba(226, 232, 240, 0.95);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(16px);
   }
 
   .app-navbar {
-    @apply relative border-b border-slate-900/50;
+    @apply relative z-30 border-b border-slate-900/50;
     background:
       linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.94) 100%);
     box-shadow:
@@ -186,7 +578,30 @@
   }
 
   .modern-panel {
-    @apply rounded-2xl border border-white/60 bg-white/95 shadow-soft backdrop-blur-xl;
+    @apply rounded-2xl shadow-soft backdrop-blur-xl transition-colors duration-500;
+    border-width: 1px;
+    border-style: solid;
+  }
+
+  html[data-bg-theme="frosted-saas"] .modern-panel,
+  html:not([data-bg-theme]) .modern-panel {
+    border-color: rgba(6, 182, 212, 0.35);
+    background: rgba(240, 253, 255, 0.88);
+  }
+
+  html[data-bg-theme="warm-paper"] .modern-panel {
+    border-color: rgba(251, 146, 60, 0.35);
+    background: rgba(255, 247, 237, 0.9);
+  }
+
+  html[data-bg-theme="aurora-light"] .modern-panel {
+    border-color: rgba(192, 38, 211, 0.3);
+    background: rgba(253, 244, 255, 0.86);
+  }
+
+  html[data-bg-theme="layered-depth"] .modern-panel {
+    border-color: rgba(74, 222, 128, 0.4);
+    background: rgba(247, 254, 231, 0.9);
   }
 
   .glass-panel {
@@ -238,11 +653,37 @@
   }
 
   .analytics-shell {
-    @apply relative overflow-hidden rounded-3xl border border-white/70 bg-white/80 shadow-card backdrop-blur-2xl;
+    @apply relative overflow-hidden rounded-3xl shadow-card backdrop-blur-2xl transition-colors duration-500;
+    border-width: 1px;
+    border-style: solid;
+  }
+
+  html[data-bg-theme="frosted-saas"] .analytics-shell,
+  html:not([data-bg-theme]) .analytics-shell {
+    border-color: rgba(6, 182, 212, 0.4);
     background-image:
-      linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%),
-      radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.06), transparent 42%),
-      radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.05), transparent 38%);
+      linear-gradient(135deg, rgba(207, 250, 254, 0.92) 0%, rgba(224, 242, 254, 0.85) 100%),
+      radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.15), transparent 42%);
+  }
+
+  html[data-bg-theme="warm-paper"] .analytics-shell {
+    border-color: rgba(251, 146, 60, 0.4);
+    background-image:
+      linear-gradient(135deg, rgba(255, 237, 213, 0.94) 0%, rgba(255, 228, 230, 0.88) 100%),
+      radial-gradient(circle at 0% 100%, rgba(244, 63, 94, 0.12), transparent 40%);
+  }
+
+  html[data-bg-theme="aurora-light"] .analytics-shell {
+    border-color: rgba(192, 38, 211, 0.35);
+    background-image:
+      linear-gradient(135deg, rgba(250, 232, 255, 0.9) 0%, rgba(243, 232, 255, 0.82) 100%),
+      radial-gradient(circle at 100% 0%, rgba(168, 85, 247, 0.18), transparent 45%);
+  }
+
+  html[data-bg-theme="layered-depth"] .analytics-shell {
+    border-color: rgba(74, 222, 128, 0.45);
+    background-image:
+      linear-gradient(135deg, rgba(236, 252, 203, 0.92) 0%, rgba(220, 252, 231, 0.85) 100%);
   }
 
   .analytics-grid-bg {

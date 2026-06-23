@@ -6,6 +6,8 @@ import { FormEvent, useState } from "react";
 import { loginAdmin } from "../api/auth";
 import { useI18n } from "../i18n/LanguageContext";
 import { LanguageToggle } from "./LanguageToggle";
+import { BackgroundThemePicker } from "./BackgroundThemePicker";
+import { PageBackgroundDecor } from "./PageBackgroundDecor";
 
 interface LoginPageProps {
   onSuccess: () => void;
@@ -35,7 +37,9 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
 
   return (
     <div className="page-shell relative flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="absolute end-4 top-4 sm:end-6 sm:top-6">
+      <PageBackgroundDecor />
+      <div className="absolute end-4 top-4 flex items-center gap-2 sm:end-6 sm:top-6">
+        <BackgroundThemePicker />
         <LanguageToggle />
       </div>
 

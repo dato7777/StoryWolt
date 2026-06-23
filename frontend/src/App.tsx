@@ -11,6 +11,8 @@ import { ResultsTable } from "./components/ResultsTable";
 import { TimelinePicker } from "./components/TimelinePicker";
 import { DeleteTimelineConfirmDialog } from "./components/DeleteTimelineConfirmDialog";
 import { LanguageToggle } from "./components/LanguageToggle";
+import { BackgroundThemePicker } from "./components/BackgroundThemePicker";
+import { PageBackgroundDecor } from "./components/PageBackgroundDecor";
 import { UploadPanel } from "./components/UploadPanel";
 import { PeriodTotalsComparison, type ComparisonEntry } from "./components/PeriodTotalsComparison";
 import { ProductAnalytics } from "./components/ProductAnalytics";
@@ -468,21 +470,46 @@ export default function App() {
 
   return (
     <div className="page-shell">
-      <div className="orb -left-32 top-0 h-96 w-96 animate-orb-float bg-indigo-400/20" />
-      <div
-        className="orb right-0 top-1/4 h-[28rem] w-[28rem] animate-orb-float bg-sky-300/18"
-        style={{ animationDelay: "-6s" }}
-      />
-      <div
-        className="orb bottom-0 left-1/3 h-80 w-80 animate-orb-float bg-violet-400/14"
-        style={{ animationDelay: "-12s" }}
-      />
-      <div
-        className="orb right-1/4 top-2/3 h-64 w-64 animate-orb-float bg-amber-200/20"
-        style={{ animationDelay: "-18s" }}
-      />
+      <PageBackgroundDecor />
+      <div className="bg-orbs" aria-hidden>
+        <div className="orb orb-theme-ocean -left-24 top-10 h-[28rem] w-[28rem] animate-orb-float bg-cyan-400/45" />
+        <div
+          className="orb orb-theme-ocean right-[-4rem] top-1/3 h-96 w-96 animate-orb-float bg-teal-400/40"
+          style={{ animationDelay: "-5s" }}
+        />
+        <div
+          className="orb orb-theme-ocean bottom-0 left-1/4 h-80 w-80 animate-orb-float bg-sky-400/35"
+          style={{ animationDelay: "-11s" }}
+        />
 
-      <header className="relative border-b border-white/50 bg-white/80 backdrop-blur-2xl">
+        <div className="orb orb-theme-sunset -left-16 top-0 h-[32rem] w-[32rem] animate-orb-float bg-orange-400/50" />
+        <div
+          className="orb orb-theme-sunset right-0 top-1/4 h-96 w-96 animate-orb-float bg-rose-400/45"
+          style={{ animationDelay: "-7s" }}
+        />
+        <div
+          className="orb orb-theme-sunset bottom-[-2rem] left-1/2 h-80 w-80 animate-orb-float bg-amber-300/50"
+          style={{ animationDelay: "-14s" }}
+        />
+
+        <div className="orb orb-theme-violet -left-20 top-0 h-[30rem] w-[30rem] animate-orb-float bg-fuchsia-400/45" />
+        <div
+          className="orb orb-theme-violet right-0 top-0 h-[26rem] w-[26rem] animate-orb-float bg-violet-500/40"
+          style={{ animationDelay: "-6s" }}
+        />
+        <div
+          className="orb orb-theme-violet bottom-10 left-1/3 h-72 w-72 animate-orb-float bg-purple-400/38"
+          style={{ animationDelay: "-13s" }}
+        />
+
+        <div className="orb orb-theme-sage -left-16 top-1/4 h-96 w-96 animate-orb-float bg-lime-400/42" />
+        <div
+          className="orb orb-theme-sage right-[-3rem] bottom-0 h-[28rem] w-[28rem] animate-orb-float bg-emerald-400/40"
+          style={{ animationDelay: "-9s" }}
+        />
+      </div>
+
+      <header className="app-header">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-6 sm:py-6">
           <div>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -496,6 +523,7 @@ export default function App() {
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <BackgroundThemePicker />
             <LanguageToggle />
             {result && activeView === "report" && (
               <div className="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 sm:flex sm:px-4 sm:py-2">
@@ -527,7 +555,10 @@ export default function App() {
         databaseConfigured={databaseConfigured}
       />
 
-      <main className="relative mx-auto max-w-7xl space-y-8 px-6 py-8">
+      <main
+        className="main-canvas relative mx-auto max-w-7xl space-y-8 px-6 py-8"
+        data-view={activeView}
+      >
         {error && (
           <div className="modern-panel border-red-200 bg-red-50/90 px-5 py-4 font-semibold text-red-700">
             {error}
