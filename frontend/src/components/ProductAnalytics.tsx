@@ -39,10 +39,12 @@ function PeriodRankingTable({
   title,
   rows,
   showGrowth = false,
+  profitLabel,
 }: {
   title: string;
   rows: PeriodProductMetric[];
   showGrowth?: boolean;
+  profitLabel: string;
 }) {
   const { t } = useI18n();
   if (rows.length === 0) return null;
@@ -60,7 +62,7 @@ function PeriodRankingTable({
               <th className="table-sticky-th">{t("analytics.product")}</th>
               <th className="table-sticky-th">{t("analytics.qty")}</th>
               <th className="table-sticky-th">{t("analytics.revenue")}</th>
-              <th className="table-sticky-th">{t("analytics.profit")}</th>
+              <th className="table-sticky-th">{profitLabel}</th>
               <th className="table-sticky-th">{t("analytics.velocity")}</th>
               {showGrowth && (
                 <th className="table-sticky-th">{t("analytics.growth")}</th>
@@ -103,11 +105,13 @@ function OverallRankingTable({
   rows,
   showPenetration = false,
   showConsistency = false,
+  profitLabel,
 }: {
   title: string;
   rows: OverallProductMetric[];
   showPenetration?: boolean;
   showConsistency?: boolean;
+  profitLabel: string;
 }) {
   const { t } = useI18n();
   if (rows.length === 0) return null;
@@ -125,7 +129,7 @@ function OverallRankingTable({
               <th className="table-sticky-th">{t("analytics.product")}</th>
               <th className="table-sticky-th">{t("analytics.qty")}</th>
               <th className="table-sticky-th">{t("analytics.revenue")}</th>
-              <th className="table-sticky-th">{t("analytics.profit")}</th>
+              <th className="table-sticky-th">{profitLabel}</th>
               {showPenetration && (
                 <th className="table-sticky-th">{t("analytics.penetration")}</th>
               )}
@@ -172,6 +176,7 @@ export function ProductAnalytics({
   const [mode, setMode] = useState<AnalyticsMode>("overall");
   const [selectedTimelineId, setSelectedTimelineId] = useState<string | null>(activeTimelineId);
   const [limit, setLimit] = useState(10);
+  const [includeAllocatedAdCost, setIncludeAllocatedAdCost] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [periodData, setPeriodData] = useState<PeriodAnalyticsResponse | null>(null);
@@ -193,10 +198,16 @@ export function ProductAnalytics({
           setPeriodData(null);
           return;
         }
-        const data = await fetchPeriodAnalytics(selectedTimelineId, { limit });
+        const data = await fetchPeriodAnalytics(selectedTimelineId, {
+          limit,
+          includeAdCost: includeAllocatedAdCost,
+        });
         setPeriodData(data);
       } else {
-        const data = await fetchOverallAnalytics({ limit });
+        const data = await fetchOverallAnalytics({
+          limit,
+          includeAdCost: includeAllocatedAdCost,
+        });
         setOverallData(data);
       }
     } catch (err) {
@@ -206,11 +217,15 @@ export function ProductAnalytics({
     } finally {
       setLoading(false);
     }
-  }, [databaseConfigured, mode, selectedTimelineId, limit, t]);
+  }, [databaseConfigured, mode, selectedTimelineId, limit, includeAllocatedAdCost, t]);
 
   useEffect(() => {
     void loadAnalytics();
   }, [loadAnalytics]);
+
+  const profitLabel = includeAllocatedAdCost
+    ? t("analytics.profitAfterAds")
+    : t("analytics.profit");
 
   if (!databaseConfigured) {
     return null;
@@ -233,6 +248,31 @@ export function ProductAnalytics({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <label
+              className={`ad-cost-toggle cursor-pointer ${includeAllocatedAdCost ? "is-on" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={includeAllocatedAdCost}
+                onChange={(event) => setIncludeAllocatedAdCost(event.target.checked)}
+              />
+              <span
+                className={`ad-cost-switch ${includeAllocatedAdCost ? "is-on" : ""}`}
+                aria-hidden
+              >
+                <span className="ad-cost-switch-knob" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-ink">
+                  {t("analytics.includeAdCost")}
+                </span>
+                <span className="mt-0.5 block text-[11px] font-medium leading-snug text-ink-muted sm:text-xs">
+                  {t("analytics.includeAdCostHint")}
+                </span>
+              </span>
+            </label>
+
             <div className="modern-panel flex gap-1 p-1">
               <button
                 type="button"
@@ -325,19 +365,23 @@ export function ProductAnalytics({
             <PeriodRankingTable
               title={t("analytics.rankTopQuantity")}
               rows={periodData.rankings.top_quantity}
+              profitLabel={profitLabel}
             />
             <PeriodRankingTable
               title={t("analytics.rankTopRevenue")}
               rows={periodData.rankings.top_revenue}
+              profitLabel={profitLabel}
             />
             <PeriodRankingTable
               title={t("analytics.rankTopProfit")}
               rows={periodData.rankings.top_profit}
+              profitLabel={profitLabel}
             />
             <PeriodRankingTable
               title={t("analytics.rankFastestGrowing")}
               rows={periodData.rankings.fastest_growing}
               showGrowth
+              profitLabel={profitLabel}
             />
           </div>
         )}
@@ -353,24 +397,29 @@ export function ProductAnalytics({
             <OverallRankingTable
               title={t("analytics.rankTopProfit")}
               rows={overallData.rankings.top_profit}
+              profitLabel={profitLabel}
             />
             <OverallRankingTable
               title={t("analytics.rankTopRevenue")}
               rows={overallData.rankings.top_revenue}
+              profitLabel={profitLabel}
             />
             <OverallRankingTable
               title={t("analytics.rankTopQuantity")}
               rows={overallData.rankings.top_quantity}
+              profitLabel={profitLabel}
             />
             <OverallRankingTable
               title={t("analytics.rankTopPenetration")}
               rows={overallData.rankings.top_penetration}
               showPenetration
+              profitLabel={profitLabel}
             />
             <OverallRankingTable
               title={t("analytics.rankMostConsistent")}
               rows={overallData.rankings.most_consistent}
               showConsistency
+              profitLabel={profitLabel}
             />
           </div>
         )}

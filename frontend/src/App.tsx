@@ -468,14 +468,18 @@ export default function App() {
 
   return (
     <div className="page-shell">
-      <div className="orb -left-32 top-0 h-96 w-96 animate-orb-float bg-indigo-500/25" />
+      <div className="orb -left-32 top-0 h-96 w-96 animate-orb-float bg-indigo-400/20" />
       <div
-        className="orb right-0 top-1/4 h-[28rem] w-[28rem] animate-orb-float bg-sky-400/20"
+        className="orb right-0 top-1/4 h-[28rem] w-[28rem] animate-orb-float bg-sky-300/18"
         style={{ animationDelay: "-6s" }}
       />
       <div
-        className="orb bottom-0 left-1/3 h-80 w-80 animate-orb-float bg-violet-500/18"
+        className="orb bottom-0 left-1/3 h-80 w-80 animate-orb-float bg-violet-400/14"
         style={{ animationDelay: "-12s" }}
+      />
+      <div
+        className="orb right-1/4 top-2/3 h-64 w-64 animate-orb-float bg-amber-200/20"
+        style={{ animationDelay: "-18s" }}
       />
 
       <header className="relative border-b border-white/50 bg-white/80 backdrop-blur-2xl">

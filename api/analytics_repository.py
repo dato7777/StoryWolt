@@ -10,13 +10,23 @@ from supabase_client import db_connection
 PRODUCT_KEY_EXPR = "COALESCE(NULLIF(TRIM(merchant_sku), ''), TRIM(item_name))"
 
 
+def _profit_sum_expr(include_ad_cost: bool) -> str:
+    column = "net_income_after_ad_cost" if include_ad_cost else "net_income"
+    return f"SUM(CASE WHEN status = 'ok' THEN {column} ELSE 0 END)::numeric"
+
+
 def _validate_uuid(value: str) -> str:
     return str(UUID(value))
 
 
-def fetch_period_product_metrics(timeline_id: str) -> dict[str, Any] | None:
+def fetch_period_product_metrics(
+    timeline_id: str,
+    *,
+    include_ad_cost: bool = False,
+) -> dict[str, Any] | None:
     """Aggregate per-product metrics for one timeline, with previous-period growth."""
     tid = _validate_uuid(timeline_id)
+    profit_sum = _profit_sum_expr(include_ad_cost)
 
     sql = f"""
     WITH period_info AS (
@@ -52,10 +62,7 @@ def fetch_period_product_metrics(timeline_id: str) -> dict[str, Any] | None:
         MAX(NULLIF(TRIM(merchant_sku), '')) AS merchant_sku,
         SUM(quantity)::bigint AS total_quantity,
         ROUND(SUM(COALESCE(sold_total, gross_total, 0))::numeric, 2) AS total_revenue,
-        ROUND(
-          SUM(CASE WHEN status = 'ok' THEN net_income ELSE 0 END)::numeric,
-          2
-        ) AS total_net_profit,
+        ROUND({profit_sum}, 2) AS total_net_profit,
         BOOL_OR(status = 'ok') AS has_profit_data
       FROM report_product_rows
       WHERE timeline_id = %s::uuid
@@ -66,10 +73,7 @@ def fetch_period_product_metrics(timeline_id: str) -> dict[str, Any] | None:
         {PRODUCT_KEY_EXPR} AS product_key,
         SUM(quantity)::bigint AS previous_quantity,
         ROUND(SUM(COALESCE(sold_total, gross_total, 0))::numeric, 2) AS previous_revenue,
-        ROUND(
-          SUM(CASE WHEN status = 'ok' THEN net_income ELSE 0 END)::numeric,
-          2
-        ) AS previous_net_profit
+        ROUND({profit_sum}, 2) AS previous_net_profit
       FROM report_product_rows
       WHERE timeline_id = (SELECT id FROM previous_timeline)
       GROUP BY product_key
@@ -177,8 +181,9 @@ def fetch_period_product_metrics(timeline_id: str) -> dict[str, Any] | None:
     }
 
 
-def fetch_overall_product_metrics() -> list[dict[str, Any]]:
+def fetch_overall_product_metrics(*, include_ad_cost: bool = False) -> list[dict[str, Any]]:
     """Lifetime per-product metrics across all saved timelines."""
+    profit_sum = _profit_sum_expr(include_ad_cost)
 
     sql = f"""
     WITH product_sales AS (
@@ -188,10 +193,7 @@ def fetch_overall_product_metrics() -> list[dict[str, Any]]:
         MAX(NULLIF(TRIM(merchant_sku), '')) AS merchant_sku,
         SUM(quantity)::bigint AS lifetime_quantity,
         ROUND(SUM(COALESCE(sold_total, gross_total, 0))::numeric, 2) AS lifetime_revenue,
-        ROUND(
-          SUM(CASE WHEN status = 'ok' THEN net_income ELSE 0 END)::numeric,
-          2
-        ) AS lifetime_profit,
+        ROUND({profit_sum}, 2) AS lifetime_profit,
         BOOL_OR(status = 'ok') AS has_profit_data
       FROM report_product_rows
       GROUP BY product_key

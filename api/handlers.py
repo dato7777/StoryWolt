@@ -221,6 +221,12 @@ def _query_params(handler: BaseHTTPRequestHandler) -> dict[str, str]:
     return {key: values[0] for key, values in raw.items() if values}
 
 
+def _parse_bool_param(raw: str | None) -> bool:
+    if not raw:
+        return False
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def handle_analytics_period_get(handler: BaseHTTPRequestHandler) -> None:
     if not is_request_authenticated(handler.headers.get("Authorization")):
         send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
@@ -242,6 +248,7 @@ def handle_analytics_period_get(handler: BaseHTTPRequestHandler) -> None:
             sort=params.get("sort"),
             limit=parse_limit(params.get("limit")),
             ranking=params.get("ranking"),
+            include_ad_cost=_parse_bool_param(params.get("include_ad_cost")),
         )
         send_json(handler, 200, result)
     except ValueError as exc:
@@ -265,6 +272,7 @@ def handle_analytics_overall_get(handler: BaseHTTPRequestHandler) -> None:
             sort=params.get("sort"),
             limit=parse_limit(params.get("limit")),
             ranking=params.get("ranking"),
+            include_ad_cost=_parse_bool_param(params.get("include_ad_cost")),
         )
         send_json(handler, 200, result)
     except ValueError as exc:

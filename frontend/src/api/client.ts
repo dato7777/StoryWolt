@@ -142,6 +142,7 @@ export interface AnalyticsQuery {
   sort?: string;
   limit?: number;
   ranking?: string;
+  includeAdCost?: boolean;
 }
 
 function buildAnalyticsQuery(params: AnalyticsQuery): string {
@@ -149,6 +150,7 @@ function buildAnalyticsQuery(params: AnalyticsQuery): string {
   if (params.sort) search.set("sort", params.sort);
   if (params.limit != null) search.set("limit", String(params.limit));
   if (params.ranking) search.set("ranking", params.ranking);
+  if (params.includeAdCost) search.set("include_ad_cost", "true");
   const qs = search.toString();
   return qs ? `?${qs}` : "";
 }
@@ -163,6 +165,7 @@ export async function fetchPeriodAnalytics(
   if (params.sort) search.set("sort", params.sort);
   if (params.limit != null) search.set("limit", String(params.limit));
   if (params.ranking) search.set("ranking", params.ranking);
+  if (params.includeAdCost) search.set("include_ad_cost", "true");
 
   const response = await fetch(`${API_BASE}/api/analytics/period?${search}`, {
     headers: authHeaders(),

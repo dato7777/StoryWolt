@@ -42,6 +42,7 @@ const en = {
     uploads: "Uploads",
     periodReport: "Period report",
     analytics: "Product analytics",
+    toStoryPhone: "To StoryPhone",
   },
   app: {
     dashboardTitle: "Wolt Net Income Dashboard",
@@ -135,6 +136,9 @@ const en = {
     rankTopPenetration: "Highest order penetration",
     rankMostConsistent: "Most consistent sellers",
     jumpToAnalytics: "Analytics",
+    includeAdCost: "Include allocated ad cost",
+    includeAdCostHint: "Subtract pro-rata ad spend for more accurate net profit rankings",
+    profitAfterAds: "Net profit (after ads)",
   },
   deleteDialog: {
     title: "Delete saved report",
@@ -344,6 +348,7 @@ const he: DeepStringRecord<typeof en> = {
     uploads: "העלאות",
     periodReport: "דוח תקופה",
     analytics: "אנליטיקת מוצרים",
+    toStoryPhone: "לסטורי פון",
   },
   app: {
     dashboardTitle: "לוח בקרה — הכנסה נטו Wolt",
@@ -437,6 +442,9 @@ const he: DeepStringRecord<typeof en> = {
     rankTopPenetration: "חדירה גבוהה להזמנות",
     rankMostConsistent: "מוכרים עקביים ביותר",
     jumpToAnalytics: "אנליטיקה",
+    includeAdCost: "כלול עלות פרסום מוקצית",
+    includeAdCostHint: "הפחתת הוצאות פרסום יחסיות לדירוג רווח נטו מדויק יותר",
+    profitAfterAds: "רווח נטו (אחרי פרסום)",
   },
   deleteDialog: {
     title: "מחיקת דוח שמור",

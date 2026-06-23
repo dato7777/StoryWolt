@@ -11,12 +11,13 @@
 
   body {
     @apply min-h-screen font-sans text-base font-medium text-ink antialiased;
-    background-color: #d8e2f3;
+    background-color: #e8eef8;
     background-image:
-      radial-gradient(ellipse 90% 55% at 0% 0%, rgba(79, 70, 229, 0.22), transparent 55%),
-      radial-gradient(ellipse 70% 45% at 100% 5%, rgba(14, 165, 233, 0.2), transparent 50%),
-      radial-gradient(ellipse 55% 40% at 50% 100%, rgba(124, 58, 237, 0.14), transparent 55%),
-      linear-gradient(165deg, #c9d6ec 0%, #dce6f5 38%, #e4ebf8 68%, #d6e0f2 100%);
+      radial-gradient(ellipse 120% 80% at 10% -10%, rgba(99, 102, 241, 0.18), transparent 52%),
+      radial-gradient(ellipse 90% 60% at 95% 0%, rgba(14, 165, 233, 0.16), transparent 48%),
+      radial-gradient(ellipse 70% 50% at 50% 105%, rgba(167, 139, 250, 0.14), transparent 55%),
+      radial-gradient(ellipse 40% 35% at 80% 75%, rgba(251, 191, 36, 0.08), transparent 50%),
+      linear-gradient(168deg, #eef2fb 0%, #f4f7fd 32%, #f8faff 58%, #e9eff9 100%);
     background-attachment: fixed;
   }
 
@@ -28,6 +29,156 @@
 @layer components {
   .page-shell {
     @apply relative min-h-screen overflow-x-hidden;
+  }
+
+  .page-shell::before {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 85% 75% at 50% 35%, black 20%, transparent 75%);
+  }
+
+  .page-shell::after {
+    content: "";
+    @apply pointer-events-none fixed inset-0 -z-10;
+    background:
+      radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.55), transparent 28%),
+      radial-gradient(circle at 85% 15%, rgba(255, 255, 255, 0.4), transparent 24%),
+      radial-gradient(circle at 60% 90%, rgba(255, 255, 255, 0.35), transparent 30%);
+  }
+
+  .app-navbar {
+    @apply relative border-b border-slate-900/50;
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.94) 100%);
+    box-shadow:
+      0 4px 24px rgba(15, 23, 42, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .app-navbar-glow {
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(129, 140, 248, 0.7) 25%,
+      rgba(56, 189, 248, 0.8) 50%,
+      rgba(167, 139, 250, 0.7) 75%,
+      transparent
+    );
+  }
+
+  .app-navbar-inner {
+    @apply mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 sm:py-3.5;
+  }
+
+  .app-navbar-track {
+    @apply inline-flex gap-1 rounded-2xl border border-white/10 bg-slate-900/60 p-1 shadow-inner;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .app-navbar-item {
+    @apply relative shrink-0 overflow-hidden rounded-xl px-3.5 py-2 text-sm font-bold transition-all duration-300 sm:px-4 sm:py-2.5 sm:text-[0.95rem];
+    color: rgba(203, 213, 225, 0.88);
+  }
+
+  .app-navbar-item:not(.is-disabled):not(.is-active):hover {
+    color: #f8fafc;
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .app-navbar-item.is-active {
+    color: #fff;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 48%, #2563eb 100%);
+    box-shadow:
+      0 8px 24px rgba(79, 70, 229, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .app-navbar-item.is-disabled {
+    @apply cursor-not-allowed;
+    color: rgba(148, 163, 184, 0.35);
+  }
+
+  .app-navbar-item-glow {
+    @apply pointer-events-none absolute inset-0;
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      transparent 42%,
+      rgba(255, 255, 255, 0.08) 100%
+    );
+  }
+
+  .app-navbar-badge {
+    @apply max-w-[7rem] truncate rounded-full px-2 py-0.5 text-[10px] font-bold sm:max-w-[9rem] sm:text-[11px];
+    background: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  .app-navbar-external {
+    @apply inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all duration-300 sm:gap-2 sm:px-3.5 sm:py-2.5 sm:text-sm;
+    border-color: rgba(251, 191, 36, 0.35);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(245, 158, 11, 0.08));
+    color: #fde68a;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .app-navbar-external:hover {
+    border-color: rgba(251, 191, 36, 0.55);
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.22), rgba(245, 158, 11, 0.14));
+    color: #fff7ed;
+    box-shadow:
+      0 6px 20px rgba(245, 158, 11, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .app-navbar-external-icon {
+    @apply flex h-6 w-6 items-center justify-center rounded-lg;
+    background: rgba(251, 191, 36, 0.18);
+    color: #fcd34d;
+  }
+
+  .ad-cost-toggle {
+    @apply relative flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-300 sm:px-5 sm:py-3.5;
+    border-color: rgba(14, 165, 233, 0.25);
+    background: linear-gradient(135deg, rgba(224, 242, 254, 0.9), rgba(255, 255, 255, 0.95));
+    box-shadow:
+      0 4px 20px rgba(14, 165, 233, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  .ad-cost-toggle.is-on {
+    border-color: rgba(14, 165, 233, 0.45);
+    background: linear-gradient(135deg, rgba(186, 230, 253, 0.95), rgba(224, 242, 254, 0.9));
+    box-shadow:
+      0 8px 28px rgba(14, 165, 233, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+
+  .ad-cost-switch {
+    @apply relative h-7 w-12 shrink-0 rounded-full transition-colors duration-300;
+    background: #cbd5e1;
+    box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.12);
+  }
+
+  .ad-cost-switch.is-on {
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    box-shadow:
+      0 0 16px rgba(14, 165, 233, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .ad-cost-switch-knob {
+    @apply absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-300;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+  }
+
+  .ad-cost-switch.is-on .ad-cost-switch-knob {
+    transform: translateX(1.25rem);
   }
 
   .orb {

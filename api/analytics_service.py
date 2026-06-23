@@ -123,8 +123,9 @@ def get_period_analytics(
     sort: str | None = None,
     limit: int = DEFAULT_LIMIT,
     ranking: str | None = None,
+    include_ad_cost: bool = False,
 ) -> dict[str, Any]:
-    raw = fetch_period_product_metrics(timeline_id)
+    raw = fetch_period_product_metrics(timeline_id, include_ad_cost=include_ad_cost)
     if raw is None:
         raise ValueError(f"Timeline not found: {timeline_id}")
 
@@ -141,6 +142,7 @@ def get_period_analytics(
         "product_count": len(products),
         "sort": sort_field,
         "limit": limit,
+        "include_ad_cost": include_ad_cost,
         "products": take_top(sorted_products, limit) if not ranking else [],
         "rankings": rankings,
     }
@@ -158,8 +160,9 @@ def get_overall_analytics(
     sort: str | None = None,
     limit: int = DEFAULT_LIMIT,
     ranking: str | None = None,
+    include_ad_cost: bool = False,
 ) -> dict[str, Any]:
-    products = fetch_overall_product_metrics()
+    products = fetch_overall_product_metrics(include_ad_cost=include_ad_cost)
     sort_field = parse_sort_field(sort, OVERALL_SORT_FIELDS, "lifetime_revenue")
     sorted_products = sort_products(products, sort_field)
     rankings = build_overall_rankings(products, limit)
@@ -170,6 +173,7 @@ def get_overall_analytics(
         "product_count": len(products),
         "sort": sort_field,
         "limit": limit,
+        "include_ad_cost": include_ad_cost,
         "products": take_top(sorted_products, limit) if not ranking else [],
         "rankings": rankings,
     }

@@ -2,6 +2,8 @@ import { useI18n } from "../i18n/LanguageContext";
 
 export type AppView = "reports" | "uploads" | "report" | "analytics";
 
+const STORYPHONE_URL = "https://storyphone.co.il/";
+
 interface AppNavbarProps {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
@@ -41,47 +43,59 @@ export function AppNavbar({
     },
   ];
 
-  return (
-    <nav
-      className="relative border-b border-white/40 bg-white/60 backdrop-blur-xl"
-      aria-label={t("nav.ariaLabel")}
-    >
-      <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-5 py-2.5 sm:gap-2 sm:px-6">
-        {items
-          .filter((item) => !item.hidden)
-          .map((item) => {
-            const isActive = activeView === item.id;
-            const disabled = item.disabled;
+  const visibleItems = items.filter((item) => !item.hidden);
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                disabled={disabled}
-                onClick={() => onNavigate(item.id)}
-                className={`group relative flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-bold transition-all duration-200 sm:px-4 sm:py-2.5 sm:text-base ${
-                  isActive
-                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25"
-                    : disabled
-                      ? "cursor-not-allowed text-ink-faint/50"
-                      : "text-ink-muted hover:bg-white/80 hover:text-indigo-700"
-                }`}
-              >
-                {item.label}
-                {item.badge && !disabled && (
-                  <span
-                    className={`max-w-[8rem] truncate rounded-full px-2 py-0.5 text-[10px] font-bold sm:max-w-[10rem] sm:text-xs ${
-                      isActive
-                        ? "bg-white/20 text-white"
-                        : "bg-indigo-100 text-indigo-700 group-hover:bg-indigo-200"
-                    }`}
-                  >
-                    {item.badge}
+  return (
+    <nav className="app-navbar" aria-label={t("nav.ariaLabel")}>
+      <div className="app-navbar-glow" aria-hidden />
+      <div className="app-navbar-inner">
+        <div className="hidden w-[9.5rem] shrink-0 sm:block" aria-hidden />
+
+        <div className="flex min-w-0 flex-1 justify-center overflow-x-auto">
+          <div className="app-navbar-track">
+            {visibleItems.map((item) => {
+              const isActive = activeView === item.id;
+              const disabled = item.disabled;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onNavigate(item.id)}
+                  className={`app-navbar-item ${isActive ? "is-active" : ""} ${
+                    disabled ? "is-disabled" : ""
+                  }`}
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    {item.label}
+                    {item.badge && !disabled && (
+                      <span className="app-navbar-badge">{item.badge}</span>
+                    )}
                   </span>
-                )}
-              </button>
-            );
-          })}
+                  {isActive && <span className="app-navbar-item-glow" aria-hidden />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex w-[9.5rem] shrink-0 justify-end">
+          <a
+            href={STORYPHONE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="app-navbar-external"
+          >
+            <span className="app-navbar-external-icon" aria-hidden>
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </span>
+            <span className="hidden sm:inline">{t("nav.toStoryPhone")}</span>
+            <span className="sm:hidden">StoryPhone</span>
+          </a>
+        </div>
       </div>
     </nav>
   );
