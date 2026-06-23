@@ -231,7 +231,7 @@ export function TimelinePicker({
         </div>
       </div>
 
-      <div className="relative mt-5 flex flex-wrap justify-center gap-3">
+      <div className="mt-5 flex flex-wrap justify-center gap-2.5 sm:mt-5 sm:gap-3">
         {timelines.map((timeline, index) => {
           const isActive = activeTimelineId === timeline.id;
           const isLoading = loadingTimelineId === timeline.id;

@@ -515,11 +515,11 @@ export default function App() {
       </div>
 
       <header className="app-header">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-6 sm:py-6">
-          <div>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+        <div className="app-header-inner">
+          <div className="app-header-brand">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:gap-x-3">
               <h1 className="brand-title">Story Phone</h1>
-              <span className="font-display text-base font-semibold italic tracking-wide text-violet-600 sm:text-lg">
+              <span className="font-display text-sm font-semibold italic tracking-wide text-violet-600 sm:text-lg">
                 — From Dato
               </span>
             </div>
@@ -527,7 +527,7 @@ export default function App() {
               {t("app.dashboardTitle")}
             </p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="app-header-actions">
             <BackgroundThemePicker />
             <LanguageToggle />
             {result && activeView === "report" && (
@@ -538,7 +538,7 @@ export default function App() {
                 </span>
               </div>
             )}
-            <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-muted sm:px-4 sm:py-2 sm:text-sm">
+            <div className="max-w-[7.5rem] truncate rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ink-muted sm:max-w-none sm:px-4 sm:py-2 sm:text-sm">
               {adminName}
             </div>
             <button
@@ -561,7 +561,7 @@ export default function App() {
       />
 
       <main
-        className="main-canvas relative mx-auto max-w-7xl space-y-8 px-6 py-8"
+        className="main-canvas relative mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 sm:py-8"
         data-view={activeView}
       >
         {error && (
@@ -664,7 +664,7 @@ export default function App() {
             )}
 
             <div ref={tabsBarRef} id="main-tabs" className="relative scroll-mt-28">
-              <div className="modern-panel flex gap-2 p-2">
+              <div className="modern-panel main-tabs-bar">
               {(
                 [
                   {
@@ -709,9 +709,7 @@ export default function App() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex flex-1 items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-base font-bold transition-all duration-300 ease-out ${
-                    activeTab === tab.id ? tab.active : tab.idle
-                  } ${
+                  className={`main-tab-btn ${activeTab === tab.id ? tab.active : tab.idle} ${
                     tab.id === "losses" && highlightLossesTab
                       ? "animate-tab-spotlight z-10 ring-2 ring-inset ring-red-500"
                       : ""

@@ -36,7 +36,7 @@ export function LoginPage({ onSuccess }: LoginPageProps) {
   }
 
   return (
-    <div className="page-shell relative flex min-h-screen items-center justify-center px-4 py-10">
+    <div className="page-shell relative flex min-h-[100dvh] items-center justify-center px-4 py-10">
       <PageBackgroundDecor />
       <div className="absolute end-4 top-4 flex items-center gap-2 sm:end-6 sm:top-6">
         <BackgroundThemePicker />

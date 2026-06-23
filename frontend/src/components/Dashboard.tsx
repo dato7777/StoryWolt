@@ -235,9 +235,9 @@ function MainHeroCascade({
             }}
             className="relative scroll-mt-28"
             style={{
-              marginLeft: `calc(${index} * clamp(1rem, 5vw, 2.75rem))`,
+              marginLeft: `calc(${index} * clamp(0.25rem, 2.5vw, 2.75rem))`,
               marginTop:
-                index === 0 ? 0 : `calc(${index} * clamp(0.6rem, 2.5vw, 1.35rem))`,
+                index === 0 ? 0 : `calc(${index} * clamp(0.4rem, 2vw, 1.35rem))`,
               zIndex: steps.length - index,
             }}
           >

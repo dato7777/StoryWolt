@@ -282,16 +282,20 @@ export function PeriodTotalsComparison({ entries, embedded = false }: PeriodTota
         </div>
       )}
 
-      <div
-        className="compare-totals-grid"
-        style={{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }}
-      >
-        {entries.map((entry) => (
-          <ComparisonColumn key={entry.timelineId} entry={entry} uploadLabel={uploadLabel} />
-        ))}
-        {showSummary && (
-          <SummaryColumn entries={entries} uploadLabel={uploadLabel} visible={showSummary} />
-        )}
+      <div className="compare-totals-scroll">
+        <div
+          className="compare-totals-grid"
+          style={{
+            gridTemplateColumns: `repeat(${columnCount}, minmax(10.5rem, 1fr))`,
+          }}
+        >
+          {entries.map((entry) => (
+            <ComparisonColumn key={entry.timelineId} entry={entry} uploadLabel={uploadLabel} />
+          ))}
+          {showSummary && (
+            <SummaryColumn entries={entries} uploadLabel={uploadLabel} visible={showSummary} />
+          )}
+        </div>
       </div>
     </div>
   );

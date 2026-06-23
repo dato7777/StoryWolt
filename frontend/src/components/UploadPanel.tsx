@@ -117,7 +117,7 @@ export function UploadPanel({
           type="button"
           disabled={!canCalculate}
           onClick={() => void onCalculate()}
-          className="group relative shrink-0 overflow-hidden rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 px-8 py-3.5 text-base font-bold text-white shadow-glow transition hover:scale-[1.02] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+          className="group relative w-full shrink-0 overflow-hidden rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 px-8 py-3.5 text-base font-bold text-white shadow-glow transition hover:scale-[1.02] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 sm:w-auto"
         >
           <span className="relative z-10">
             {loading ? t("upload.calculating") : t("upload.calculate")}

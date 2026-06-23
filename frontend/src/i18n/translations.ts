@@ -39,9 +39,13 @@ const en = {
   nav: {
     ariaLabel: "Main navigation",
     reports: "Saved reports",
+    reportsShort: "Reports",
     uploads: "Uploads",
+    uploadsShort: "Uploads",
     periodReport: "Period report",
+    periodReportShort: "Report",
     analytics: "Product analytics",
+    analyticsShort: "Analytics",
     toStoryPhone: "To StoryPhone",
   },
   backgroundTheme: {
@@ -378,9 +382,13 @@ const he: DeepStringRecord<typeof en> = {
   nav: {
     ariaLabel: "ניווט ראשי",
     reports: "דוחות שמורים",
+    reportsShort: "דוחות",
     uploads: "העלאות",
+    uploadsShort: "העלאות",
     periodReport: "דוח תקופה",
+    periodReportShort: "דוח",
     analytics: "אנליטיקת מוצרים",
+    analyticsShort: "אנליטיקה",
     toStoryPhone: "לסטורי פון",
   },
   backgroundTheme: {

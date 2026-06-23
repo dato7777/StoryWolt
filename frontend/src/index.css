@@ -9,6 +9,14 @@
     scrollbar-gutter: stable;
   }
 
+  #root {
+    @apply min-w-0 w-full;
+  }
+
+  img {
+    @apply max-w-full h-auto;
+  }
+
   body {
     @apply min-h-screen font-sans text-base font-medium text-ink antialiased;
     background-color: #e8eef8;
@@ -60,7 +68,7 @@
 
 @layer components {
   .page-shell {
-    @apply relative min-h-screen overflow-x-hidden;
+    @apply relative min-h-screen min-w-0 overflow-x-hidden;
   }
 
   /* Ocean Wave — rolling wave band + bubble dots */
@@ -339,7 +347,7 @@
   }
 
   .main-canvas {
-    @apply relative;
+    @apply relative min-w-0;
   }
 
   html[data-bg-theme="layered-depth"] .main-canvas::before {
@@ -464,16 +472,44 @@
   }
 
   .app-navbar-inner {
-    @apply mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6 sm:py-3.5;
+    @apply mx-auto flex max-w-7xl flex-col gap-2 px-3 py-2.5 md:flex-row md:items-center md:gap-2 md:px-4 md:py-3 lg:gap-3 lg:px-6 lg:py-3.5;
+  }
+
+  .app-navbar-scroll {
+    @apply flex w-full min-w-0 flex-1 justify-center overflow-visible;
+  }
+
+  .app-navbar-external-row {
+    @apply flex w-full shrink-0 justify-center md:w-auto md:justify-end;
+  }
+
+  .app-navbar-external--mobile {
+    @apply w-full justify-center md:w-auto;
+  }
+
+  .app-header-inner {
+    @apply mx-auto flex max-w-7xl min-w-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:py-6;
+  }
+
+  .app-header-brand {
+    @apply min-w-0;
+  }
+
+  .app-header-actions {
+    @apply flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3;
+  }
+
+  .app-header-actions .bg-theme-picker-trigger {
+    @apply max-w-[calc(100vw-8rem)];
   }
 
   .app-navbar-track {
-    @apply inline-flex gap-1 rounded-2xl border border-white/10 bg-slate-900/60 p-1 shadow-inner;
+    @apply flex w-full max-w-full flex-wrap justify-center gap-1 rounded-2xl border border-white/10 bg-slate-900/60 p-1 shadow-inner;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   }
 
   .app-navbar-item {
-    @apply relative shrink-0 overflow-hidden rounded-xl px-3.5 py-2 text-sm font-bold transition-all duration-300 sm:px-4 sm:py-2.5 sm:text-[0.95rem];
+    @apply relative shrink-0 overflow-hidden rounded-xl px-2.5 py-2 text-xs font-bold transition-all duration-300 lg:px-4 lg:py-2.5 lg:text-sm;
     color: rgba(203, 213, 225, 0.88);
   }
 
@@ -506,13 +542,13 @@
   }
 
   .app-navbar-badge {
-    @apply max-w-[7rem] truncate rounded-full px-2 py-0.5 text-[10px] font-bold sm:max-w-[9rem] sm:text-[11px];
+    @apply hidden max-w-[5.5rem] truncate rounded-full px-1.5 py-0.5 text-[10px] font-bold lg:inline lg:max-w-[9rem] lg:px-2 lg:text-[11px];
     background: rgba(255, 255, 255, 0.18);
     color: rgba(255, 255, 255, 0.95);
   }
 
   .app-navbar-external {
-    @apply inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all duration-300 sm:gap-2 sm:px-3.5 sm:py-2.5 sm:text-sm;
+    @apply inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all duration-300 lg:gap-2 lg:px-3.5 lg:py-2.5 lg:text-sm;
     border-color: rgba(251, 191, 36, 0.35);
     background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(245, 158, 11, 0.08));
     color: #fde68a;
@@ -535,7 +571,7 @@
   }
 
   .ad-cost-toggle {
-    @apply relative flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-300 sm:px-5 sm:py-3.5;
+    @apply relative flex w-full items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-300 sm:w-auto sm:max-w-md sm:px-5 sm:py-3.5;
     border-color: rgba(14, 165, 233, 0.25);
     background: linear-gradient(135deg, rgba(224, 242, 254, 0.9), rgba(255, 255, 255, 0.95));
     box-shadow:
@@ -575,6 +611,15 @@
 
   .orb {
     @apply pointer-events-none absolute rounded-full blur-3xl;
+    max-width: min(100vw, 32rem);
+    max-height: min(100vw, 32rem);
+  }
+
+  @media (max-width: 639px) {
+    .bg-orbs .orb {
+      transform: scale(0.65);
+      opacity: 0.85;
+    }
   }
 
   .modern-panel {
@@ -609,7 +654,8 @@
   }
 
   .table-scroll {
-    @apply max-h-[min(70vh,calc(100vh-14rem))] overflow-y-auto overflow-x-hidden;
+    @apply max-h-[min(70vh,calc(100vh-14rem))] overflow-x-auto overflow-y-auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .table-sticky-th {
@@ -645,7 +691,7 @@
   }
 
   .brand-title {
-    @apply font-display text-4xl font-bold leading-none tracking-tight sm:text-5xl lg:text-6xl;
+    @apply font-display text-2xl font-bold leading-none tracking-tight sm:text-4xl lg:text-5xl xl:text-6xl;
     background: linear-gradient(120deg, #312e81 0%, #2563eb 45%, #7c3aed 100%);
     -webkit-background-clip: text;
     background-clip: text;
@@ -722,26 +768,60 @@
   }
 
   .hero-cascade-card {
-    @apply relative w-full max-w-2xl overflow-hidden rounded-2xl border p-6 shadow-card sm:p-7;
+    @apply relative w-full max-w-2xl overflow-hidden rounded-2xl border p-4 shadow-card sm:p-7;
+  }
+
+  .main-tabs-bar {
+    @apply flex flex-col gap-2 p-2 sm:flex-row;
+  }
+
+  .main-tab-btn {
+    @apply relative flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold transition-all duration-300 ease-out sm:gap-2.5 sm:px-5 sm:py-3.5 sm:text-base;
+  }
+
+  .analytics-controls {
+    @apply flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center;
+  }
+
+  .analytics-controls .modern-panel {
+    @apply w-full sm:w-auto;
+  }
+
+  .analytics-period-select {
+    @apply w-full min-w-0 sm:min-w-[14rem] sm:w-auto;
   }
 
   .hero-cascade-index {
     @apply font-display text-sm font-bold tabular-nums tracking-wider;
   }
 
+  .compare-totals-scroll {
+    @apply -mx-1 min-w-0 overflow-x-auto px-1 pb-1;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .compare-totals-grid {
     display: grid;
     gap: 0.75rem;
     align-items: stretch;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  @media (min-width: 1024px) {
+    .compare-totals-grid {
+      width: 100%;
+    }
   }
 
   .compare-col-header {
-    @apply sticky top-20 z-10 flex flex-col items-center justify-center rounded-xl px-3 py-3 text-center shadow-sm;
+    @apply sticky top-16 z-10 flex flex-col items-center justify-center rounded-xl px-3 py-3 text-center shadow-sm sm:top-20;
     height: 5.5rem;
+    min-width: 10.5rem;
   }
 
   .compare-metric-card {
-    @apply relative box-border flex h-[9rem] w-full flex-col overflow-hidden rounded-2xl border p-4 shadow-card sm:h-[9.25rem] sm:p-5;
+    @apply relative box-border flex h-[8.5rem] w-full min-w-[10.5rem] flex-col overflow-hidden rounded-2xl border p-3 shadow-card sm:h-[9.25rem] sm:min-w-0 sm:p-5;
   }
 
   .compare-metric-hint {
@@ -849,7 +929,7 @@
   }
 
   .platform-hub {
-    @apply relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12;
+    @apply relative flex min-h-[100dvh] items-center justify-center overflow-x-hidden px-4 py-12 pb-[max(3rem,env(safe-area-inset-bottom))];
     background: #030712;
   }
 

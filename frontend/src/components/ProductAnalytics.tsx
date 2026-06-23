@@ -247,7 +247,7 @@ export function ProductAnalytics({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="analytics-controls">
             <label
               className={`ad-cost-toggle cursor-pointer ${includeAllocatedAdCost ? "is-on" : ""}`}
             >
@@ -301,7 +301,7 @@ export function ProductAnalytics({
             <select
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink sm:w-auto"
             >
               {[5, 10, 20, 50].map((n) => (
                 <option key={n} value={n}>
@@ -313,14 +313,14 @@ export function ProductAnalytics({
         </div>
 
         {mode === "period" && (
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
             <label className="text-xs font-bold uppercase tracking-wide text-ink-faint">
               {t("analytics.selectPeriod")}
             </label>
             <select
               value={selectedTimelineId ?? ""}
               onChange={(e) => setSelectedTimelineId(e.target.value || null)}
-              className="min-w-[14rem] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink"
+              className="analytics-period-select rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink"
             >
               <option value="">{t("analytics.pickTimeline")}</option>
               {timelines.map((timeline) => (
