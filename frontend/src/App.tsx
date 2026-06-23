@@ -14,14 +14,24 @@ import { LanguageToggle } from "./components/LanguageToggle";
 import { UploadPanel } from "./components/UploadPanel";
 import { PeriodTotalsComparison, type ComparisonEntry } from "./components/PeriodTotalsComparison";
 import { ProductAnalytics } from "./components/ProductAnalytics";
+import { AppNavbar, type AppView } from "./components/AppNavbar";
+import { UploadSuccessCard } from "./components/UploadSuccessCard";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
 import { useI18n } from "./i18n/LanguageContext";
 import { WelcomeSplash } from "./components/WelcomeSplash";
-import { formatTimelinePeriod } from "./utils/formatReportPeriod";
+import { formatReportPeriod, formatTimelinePeriod } from "./utils/formatReportPeriod";
 import type { CalculationResponse, CalculationSummary, ReportTimeline, UploadFiles } from "./types";
 
 type TabId = "orders" | "products" | "losses";
 type AuthState = "checking" | "guest" | "welcoming" | "authenticated";
+
+function parseViewFromUrl(): AppView {
+  const param = new URLSearchParams(window.location.search).get("view");
+  if (param === "uploads" || param === "report" || param === "analytics") {
+    return param;
+  }
+  return "reports";
+}
 
 /** Smooth vertical scroll only — avoids horizontal page drift from scrollIntoView inline. */
 function scrollToElementVertically(
@@ -71,6 +81,9 @@ export default function App() {
   >({});
   const [compareLoadingIds, setCompareLoadingIds] = useState<Set<string>>(new Set());
   const [compareErrors, setCompareErrors] = useState<Record<string, string>>({});
+  const [activeView, setActiveView] = useState<AppView>(parseViewFromUrl);
+  const [uploadSuccessPeriodLabel, setUploadSuccessPeriodLabel] = useState<string | null>(null);
+  const [uploadJustSucceeded, setUploadJustSucceeded] = useState(false);
   const tabsBarRef = useRef<HTMLDivElement>(null);
   const lossBannerRef = useRef<HTMLDivElement>(null);
   const resultGenerationRef = useRef(0);
@@ -116,6 +129,38 @@ export default function App() {
     void refreshTimelines();
   }, [authState, refreshTimelines]);
 
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (activeView === "reports") {
+      url.searchParams.delete("view");
+    } else {
+      url.searchParams.set("view", activeView);
+    }
+    window.history.replaceState({}, "", url);
+  }, [activeView]);
+
+  useEffect(() => {
+    if (activeView === "report" && !result) {
+      setActiveView("reports");
+    }
+  }, [activeView, result]);
+
+  const reportPeriodLabel = useMemo(() => {
+    if (!result) return null;
+    if (activeTimelineId) {
+      const timeline = timelines.find((item) => item.id === activeTimelineId);
+      if (timeline) return formatTimelinePeriod(timeline);
+    }
+    return formatReportPeriod(result.summary);
+  }, [result, activeTimelineId, timelines]);
+
+  function handleNavigate(view: AppView) {
+    if (view === "report" && !result) return;
+    if (view === "analytics" && !databaseConfigured) return;
+    setActiveView(view);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   const comparisonEntries = useMemo((): ComparisonEntry[] => {
     const entries: Array<ComparisonEntry & { sortKey: string }> = [];
 
@@ -145,7 +190,7 @@ export default function App() {
   const showComparison = comparisonEntries.length >= 2;
 
   useEffect(() => {
-    if (!showComparison) return;
+    if (!showComparison || activeView !== "reports") return;
     const timer = window.setTimeout(() => {
       document.getElementById("period-totals-comparison")?.scrollIntoView({
         behavior: "smooth",
@@ -153,7 +198,7 @@ export default function App() {
       });
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [showComparison, comparisonEntries.length]);
+  }, [showComparison, comparisonEntries.length, activeView]);
 
   const handleToggleCompare = useCallback(
     async (timelineId: string) => {
@@ -240,6 +285,7 @@ export default function App() {
       if (activeTimelineId === timelineId) {
         setResult(null);
         setActiveTimelineId(null);
+        setActiveView("reports");
       }
       setCompareTimelineIds((prev) => prev.filter((id) => id !== timelineId));
       setCompareSummaryCache((prev) => {
@@ -271,6 +317,7 @@ export default function App() {
       setIncludeAllocatedAdCost(false);
       setShowLossBanner(false);
       setHighlightLossesTab(false);
+      setActiveView("reports");
       return;
     }
 
@@ -279,6 +326,7 @@ export default function App() {
     try {
       const response = await fetchReportTimeline(timelineId);
       applyDashboardResult(response, timelineId);
+      setActiveView("report");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
@@ -344,34 +392,33 @@ export default function App() {
     setAuthState("guest");
   }
 
-  async function handleCalculate() {
-    if (!files.orderNumbers) return;
+  async function handleCalculateFromUploads() {
+    if (!files.orderNumbers || !files.paymentDetails) return;
 
     setLoading(true);
     setError(null);
+    setUploadJustSucceeded(false);
+    setUploadSuccessPeriodLabel(null);
 
     try {
-      const payload: {
-        orderNumbersCsvText: string;
-        paymentDetailsCsvText?: string;
-        orderNumbersFileName?: string;
-        paymentDetailsFileName?: string;
-      } = {
+      const response = await calculateNetIncome({
         orderNumbersCsvText: await files.orderNumbers.text(),
+        paymentDetailsCsvText: await files.paymentDetails.text(),
         orderNumbersFileName: files.orderNumbers.name,
-      };
-      if (files.paymentDetails) {
-        payload.paymentDetailsCsvText = await files.paymentDetails.text();
-        payload.paymentDetailsFileName = files.paymentDetails.name;
-      }
+        paymentDetailsFileName: files.paymentDetails.name,
+      });
 
-      const response = await calculateNetIncome(payload);
-      applyDashboardResult(response, response.timeline_id ?? null);
+      setUploadSuccessPeriodLabel(formatReportPeriod(response.summary));
+      setUploadJustSucceeded(true);
+      setFiles({
+        orderNumbers: null,
+        itemsSold: null,
+        paymentDetails: null,
+      });
       void refreshTimelines();
-      // Persist runs after API response; re-fetch so saved-report buttons appear.
       window.setTimeout(() => void refreshTimelines(), 2500);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      setResult(null);
       const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
       if (message.includes("sign in again")) {
@@ -380,6 +427,23 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleGoToReportsFromUpload() {
+    setUploadJustSucceeded(false);
+    setUploadSuccessPeriodLabel(null);
+    setActiveView("reports");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleUploadAnother() {
+    setUploadJustSucceeded(false);
+    setUploadSuccessPeriodLabel(null);
+    setFiles({
+      orderNumbers: null,
+      itemsSold: null,
+      paymentDetails: null,
+    });
   }
 
   if (authState === "checking") {
@@ -429,21 +493,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <LanguageToggle />
-            {databaseConfigured && (
-              <button
-                type="button"
-                onClick={() => {
-                  document.getElementById("product-analytics")?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  });
-                }}
-                className="hidden rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-800 transition hover:bg-violet-100 sm:inline-flex sm:px-4 sm:py-2 sm:text-sm"
-              >
-                {t("analytics.jumpToAnalytics")}
-              </button>
-            )}
-            {result && (
+            {result && activeView === "report" && (
               <div className="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 sm:flex sm:px-4 sm:py-2">
                 <span className="h-2 w-2 animate-shimmer rounded-full bg-emerald-500" />
                 <span className="text-sm font-bold text-emerald-800">
@@ -465,58 +515,76 @@ export default function App() {
         </div>
       </header>
 
+      <AppNavbar
+        activeView={activeView}
+        onNavigate={handleNavigate}
+        reportPeriodLabel={reportPeriodLabel}
+        hasReport={Boolean(result)}
+        databaseConfigured={databaseConfigured}
+      />
+
       <main className="relative mx-auto max-w-7xl space-y-8 px-6 py-8">
-        <TimelinePicker
-          timelines={timelines}
-          activeTimelineId={activeTimelineId}
-          compareTimelineIds={compareTimelineIds}
-          compareLoadingIds={compareLoadingIds}
-          loading={timelinesLoading}
-          loadingTimelineId={loadingTimelineId}
-          deletingTimelineId={deletingTimelineId}
-          databaseConfigured={databaseConfigured}
-          onSelect={(id) => void handleSelectTimeline(id)}
-          onDelete={(id) => handleRequestDeleteTimeline(id)}
-          onToggleCompare={(id) => void handleToggleCompare(id)}
-        />
-
-        {deletePendingTimeline && (
-          <DeleteTimelineConfirmDialog
-            timeline={deletePendingTimeline}
-            deleting={deletingTimelineId === deletePendingTimeline.id}
-            onConfirm={() => void handleConfirmDeleteTimeline()}
-            onCancel={handleCancelDeleteTimeline}
-          />
-        )}
-
-        <ProductAnalytics
-          timelines={timelines}
-          activeTimelineId={activeTimelineId}
-          databaseConfigured={databaseConfigured}
-        />
-
-        <UploadPanel
-          files={files}
-          onFilesChange={setFiles}
-          onCalculate={handleCalculate}
-          loading={loading}
-        />
-
         {error && (
           <div className="modern-panel border-red-200 bg-red-50/90 px-5 py-4 font-semibold text-red-700">
             {error}
           </div>
         )}
 
-        {showComparison && !result && (
-          <section className="analytics-shell">
-            <div className="space-y-6 p-5 sm:p-8">
-              <PeriodTotalsComparison entries={comparisonEntries} />
-            </div>
-          </section>
+        {activeView === "reports" && (
+          <>
+            <TimelinePicker
+              timelines={timelines}
+              activeTimelineId={activeTimelineId}
+              compareTimelineIds={compareTimelineIds}
+              compareLoadingIds={compareLoadingIds}
+              loading={timelinesLoading}
+              loadingTimelineId={loadingTimelineId}
+              deletingTimelineId={deletingTimelineId}
+              databaseConfigured={databaseConfigured}
+              onSelect={(id) => void handleSelectTimeline(id)}
+              onDelete={(id) => handleRequestDeleteTimeline(id)}
+              onToggleCompare={(id) => void handleToggleCompare(id)}
+            />
+
+            {showComparison && !result && (
+              <section className="analytics-shell" id="period-totals-comparison">
+                <div className="space-y-6 p-5 sm:p-8">
+                  <PeriodTotalsComparison entries={comparisonEntries} />
+                </div>
+              </section>
+            )}
+          </>
         )}
 
-        {result && (
+        {activeView === "uploads" && (
+          <div className="space-y-6">
+            {uploadJustSucceeded && (
+              <UploadSuccessCard
+                periodLabel={uploadSuccessPeriodLabel}
+                onGoToReports={handleGoToReportsFromUpload}
+                onUploadAnother={handleUploadAnother}
+              />
+            )}
+            {!uploadJustSucceeded && (
+              <UploadPanel
+                files={files}
+                onFilesChange={setFiles}
+                onCalculate={handleCalculateFromUploads}
+                loading={loading}
+              />
+            )}
+          </div>
+        )}
+
+        {activeView === "analytics" && databaseConfigured && (
+          <ProductAnalytics
+            timelines={timelines}
+            activeTimelineId={activeTimelineId}
+            databaseConfigured={databaseConfigured}
+          />
+        )}
+
+        {activeView === "report" && result && (
           <>
             <Dashboard
               summary={result.summary}
@@ -681,6 +749,15 @@ export default function App() {
               />
             )}
           </>
+        )}
+
+        {deletePendingTimeline && (
+          <DeleteTimelineConfirmDialog
+            timeline={deletePendingTimeline}
+            deleting={deletingTimelineId === deletePendingTimeline.id}
+            onConfirm={() => void handleConfirmDeleteTimeline()}
+            onCancel={handleCancelDeleteTimeline}
+          />
         )}
       </main>
     </div>

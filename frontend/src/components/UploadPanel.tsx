@@ -91,7 +91,9 @@ export function UploadPanel({
   loading,
 }: UploadPanelProps) {
   const { t } = useI18n();
-  const canCalculate = Boolean(files.orderNumbers) && !loading;
+  const hasOrderNumbers = Boolean(files.orderNumbers);
+  const hasSummary = Boolean(files.paymentDetails);
+  const canCalculate = hasOrderNumbers && hasSummary && !loading;
   const fileCount = [files.orderNumbers, files.paymentDetails].filter(Boolean).length;
 
   return (
@@ -102,9 +104,13 @@ export function UploadPanel({
             {t("upload.step")}
           </p>
           <h2 className="mt-1 text-xl font-bold text-ink">{t("upload.title")}</h2>
-          <p className="mt-1 text-sm font-medium text-ink-faint">
+          <p className="mt-1 text-sm font-medium text-ink-faint">{t("upload.subtitle")}</p>
+          <p className="mt-2 text-sm font-semibold text-ink-muted">
             {t("upload.filesSelected", { count: fileCount })}
           </p>
+          {!canCalculate && !loading && (
+            <p className="mt-1 text-xs font-medium text-amber-700">{t("upload.bothFilesHint")}</p>
+          )}
         </div>
 
         <button
@@ -135,6 +141,7 @@ export function UploadPanel({
         <FileSlot
           label="standardSummary.csv"
           hint={t("upload.summaryHint")}
+          required
           fileName={files.paymentDetails?.name ?? null}
           disabled={loading}
           onChange={(file) => onFilesChange({ ...files, paymentDetails: file })}
