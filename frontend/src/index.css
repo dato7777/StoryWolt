@@ -847,6 +847,142 @@
     background: linear-gradient(90deg, #6366f1, #22d3ee, #a78bfa);
     animation: welcomeProgress 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
+
+  .platform-hub {
+    @apply relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12;
+    background: #030712;
+  }
+
+  .platform-hub-bg {
+    @apply pointer-events-none absolute inset-0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 20%, rgba(0, 157, 224, 0.18), transparent 55%),
+      radial-gradient(ellipse 70% 55% at 80% 75%, rgba(34, 197, 94, 0.12), transparent 52%),
+      linear-gradient(180deg, #020617 0%, #030712 45%, #0a0f1a 100%);
+  }
+
+  .platform-hub-grid {
+    @apply pointer-events-none absolute inset-0 opacity-[0.35];
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, black 20%, transparent 75%);
+  }
+
+  .platform-hub-glow {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+    width: min(50vw, 22rem);
+    height: min(50vw, 22rem);
+  }
+
+  .platform-hub-glow--left {
+    top: 15%;
+    left: -8%;
+    background: rgba(0, 157, 224, 0.22);
+  }
+
+  .platform-hub-glow--right {
+    bottom: 10%;
+    right: -6%;
+    background: rgba(34, 197, 94, 0.15);
+  }
+
+  .platform-hub-content {
+    @apply relative z-10 w-full max-w-3xl text-center;
+  }
+
+  .platform-hub-eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.42em] text-white/45;
+  }
+
+  .platform-hub-title {
+    @apply mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl;
+  }
+
+  .platform-hub-subtitle {
+    @apply mx-auto mt-3 max-w-md text-sm font-medium text-white/50 sm:text-base;
+  }
+
+  .platform-hub-cards {
+    @apply mt-12 grid gap-6 sm:mt-14 sm:grid-cols-2 sm:gap-8;
+  }
+
+  .platform-card {
+    @apply relative flex flex-col items-center rounded-3xl border px-6 py-8 text-center transition-all duration-300 sm:px-8 sm:py-10;
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .platform-card--active {
+    @apply cursor-pointer;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .platform-card--active:hover {
+    border-color: rgba(0, 157, 224, 0.55);
+    background: rgba(0, 157, 224, 0.08);
+    box-shadow:
+      0 0 0 1px rgba(0, 157, 224, 0.2),
+      0 20px 50px rgba(0, 157, 224, 0.2);
+    transform: translateY(-4px);
+  }
+
+  .platform-card--active:active {
+    transform: translateY(-1px);
+  }
+
+  .platform-card--soon {
+    @apply cursor-not-allowed opacity-70;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .platform-card-ring {
+    @apply pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-300;
+    box-shadow: inset 0 0 40px rgba(0, 157, 224, 0.15);
+  }
+
+  .platform-card--active:hover .platform-card-ring {
+    @apply opacity-100;
+  }
+
+  .platform-card-logo-wrap {
+    @apply flex h-28 w-28 items-center justify-center rounded-2xl sm:h-32 sm:w-32;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .platform-card-logo-wrap--muted {
+    @apply opacity-60 grayscale;
+  }
+
+  .platform-card-logo {
+    @apply object-contain;
+  }
+
+  .platform-card-logo--wolt {
+    @apply h-24 w-24 sm:h-28 sm:w-28;
+  }
+
+  .platform-card-logo--neworder {
+    @apply h-16 w-full max-w-[9rem] px-2 sm:h-[4.5rem];
+  }
+
+  .platform-card-label {
+    @apply mt-5 text-lg font-bold text-white;
+  }
+
+  .platform-card-label--muted {
+    @apply text-white/55;
+  }
+
+  .platform-card-hint {
+    @apply mt-1.5 text-xs font-semibold text-cyan-300/80 transition-colors group-hover:text-cyan-200;
+  }
+
+  .platform-card-soon {
+    @apply mt-2 text-sm font-bold tracking-wide text-emerald-400/90;
+  }
 }
 
 @keyframes welcomeEnter {

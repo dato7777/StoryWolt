@@ -21,11 +21,12 @@ import { UploadSuccessCard } from "./components/UploadSuccessCard";
 import { getAuthUsername, hasAuthSession } from "./auth/session";
 import { useI18n } from "./i18n/LanguageContext";
 import { WelcomeSplash } from "./components/WelcomeSplash";
+import { PlatformHubPage } from "./components/PlatformHubPage";
 import { formatReportPeriod, formatTimelinePeriod } from "./utils/formatReportPeriod";
 import type { CalculationResponse, CalculationSummary, ReportTimeline, UploadFiles } from "./types";
 
 type TabId = "orders" | "products" | "losses";
-type AuthState = "checking" | "guest" | "welcoming" | "authenticated";
+type AuthState = "checking" | "guest" | "welcoming" | "platform-hub" | "authenticated";
 
 function parseViewFromUrl(): AppView {
   const param = new URLSearchParams(window.location.search).get("view");
@@ -461,7 +462,11 @@ export default function App() {
   }
 
   if (authState === "welcoming") {
-    return <WelcomeSplash onComplete={() => setAuthState("authenticated")} />;
+    return <WelcomeSplash onComplete={() => setAuthState("platform-hub")} />;
+  }
+
+  if (authState === "platform-hub") {
+    return <PlatformHubPage onSelectWolt={() => setAuthState("authenticated")} />;
   }
 
   const adminName = getAuthUsername() ?? "admin";

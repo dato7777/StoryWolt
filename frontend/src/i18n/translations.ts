@@ -69,6 +69,14 @@ const en = {
       description: "Mint & lime with terrazzo dots, green arch, and per-page tints.",
     },
   },
+  platformHub: {
+    eyebrow: "Story Phone",
+    title: "Choose your platform",
+    subtitle: "Select a service to open its dashboard.",
+    wolt: "Wolt",
+    woltHint: "Open net income dashboard",
+    soon: "Soon..",
+  },
   app: {
     dashboardTitle: "Wolt Net Income Dashboard",
     fromDato: "— From Dato",
@@ -399,6 +407,14 @@ const he: DeepStringRecord<typeof en> = {
       name: "Sage Terrace",
       description: "מנטה וליים עם טרצו, קשת ירוקה וגוון שונה לכל עמוד.",
     },
+  },
+  platformHub: {
+    eyebrow: "Story Phone",
+    title: "בחר פלטפורמה",
+    subtitle: "בחר שירות כדי לפתוח את לוח הבקרה שלו.",
+    wolt: "Wolt",
+    woltHint: "פתח לוח הכנסה נטו",
+    soon: "בקרוב..",
   },
   app: {
     dashboardTitle: "לוח בקרה — הכנסה נטו Wolt",
