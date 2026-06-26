@@ -43,9 +43,11 @@ DOCUMENTS_API_CAP = 200
 def get_sync_status() -> dict[str, Any]:
     config = get_neworder_config_status()
     last_sync = get_last_sync_run() if config["database_configured"] else None
+    sync_in_progress = bool(last_sync and last_sync.get("status") == "running")
     return {
         **config,
         "last_sync": _serialize_sync_run(last_sync),
+        "sync_in_progress": sync_in_progress,
         "pending_line_items": _count_pending_line_items() if config["database_configured"] else 0,
     }
 

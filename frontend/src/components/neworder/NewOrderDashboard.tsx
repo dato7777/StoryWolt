@@ -3,11 +3,16 @@ import { ChoosePlatformButton } from "../ChoosePlatformButton";
 import {
   fetchNewOrderDashboard,
   fetchNewOrderStatus,
-  runFullNewOrderSync,
   type NewOrderDashboardData,
   type NewOrderDashboardPeriod,
   type NewOrderLastSync,
 } from "../../api/client";
+import {
+  getNewOrderSyncUIState,
+  resumeNewOrderSyncIfNeeded,
+  startNewOrderSync,
+  subscribeNewOrderSync,
+} from "../../api/neworderSyncManager";
 import { formatIls, NAV_ITEMS, type NewOrderView } from "../../data/neworderMockData";
 
 const NEWORDER_LOGO = "/logos/neworder.png";
@@ -678,8 +683,7 @@ const EMPTY_DASHBOARD: NewOrderDashboardData = {
 
 export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardProps) {
   const [view, setView] = useState<NewOrderView>("dashboard");
-  const [syncing, setSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<string | null>(null);
+  const [syncUI, setSyncUI] = useState(getNewOrderSyncUIState);
   const [lastSync, setLastSync] = useState<NewOrderLastSync | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [configReady, setConfigReady] = useState(true);
@@ -692,6 +696,8 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
   const meta = VIEW_META[view];
   const stockAlertCount = dashboard.kpi.low_stock_count;
   const filteredDashboard = filterDashboardBySearch(dashboard, view, searchQuery);
+  const syncing = syncUI.syncing;
+  const syncProgress = syncUI.progress;
 
   const loadDashboard = useCallback(async (activePeriod: NewOrderDashboardPeriod) => {
     const fetchId = ++fetchGenerationRef.current;
@@ -736,10 +742,48 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
       const status = await fetchNewOrderStatus();
       setLastSync(status.last_sync);
       setConfigReady(status.database_configured && status.neworder_token_configured);
-      setSyncError(null);
+      if (!getNewOrderSyncUIState().syncing) {
+        setSyncError(null);
+      }
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : "Failed to load sync status.");
     }
+  }, []);
+
+  const finishSyncRun = useCallback(async () => {
+    await refreshStatus();
+    await loadDashboard(period);
+  }, [loadDashboard, period, refreshStatus]);
+
+  const wasSyncingRef = useRef(getNewOrderSyncUIState().syncing);
+
+  useEffect(() => {
+    return subscribeNewOrderSync((state) => {
+      setSyncUI(state);
+      if (state.error) {
+        setSyncError(state.error);
+      }
+      if (wasSyncingRef.current && !state.syncing) {
+        void (async () => {
+          await finishSyncRun();
+          if (state.lastResult?.last_sync) {
+            setLastSync(state.lastResult.last_sync);
+          }
+          if (state.lastResult?.warnings?.length) {
+            setSyncError(state.lastResult.warnings.join(" · "));
+          } else if (state.lastResult?.status === "partial") {
+            setSyncError("Sync finished with partial data. Run sync again to continue.");
+          } else if (!state.error) {
+            setSyncError(null);
+          }
+        })();
+      }
+      wasSyncingRef.current = state.syncing;
+    });
+  }, [finishSyncRun]);
+
+  useEffect(() => {
+    void resumeNewOrderSyncIfNeeded(SYNC_HOURS);
   }, []);
 
   useEffect(() => {
@@ -754,31 +798,14 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
     setSearchQuery("");
   }, [view]);
 
-  async function handleSync() {
-    setSyncing(true);
-    setSyncError(null);
-    setSyncProgress("Starting…");
-    try {
-      const result = await runFullNewOrderSync({
-        hours: SYNC_HOURS,
-        onProgress: setSyncProgress,
-      });
-      await refreshStatus();
-      await loadDashboard(period);
-      if (result.last_sync) {
-        setLastSync(result.last_sync);
-      }
-      if (result.warnings?.length) {
-        setSyncError(result.warnings.join(" · "));
-      } else if (result.status === "partial") {
-        setSyncError("Sync finished with partial data. Run sync again to continue.");
-      }
-    } catch (error) {
-      setSyncError(error instanceof Error ? error.message : "Sync failed.");
-    } finally {
-      setSyncing(false);
-      setSyncProgress(null);
+  function handleSync() {
+    if (syncing) {
+      return;
     }
+    setSyncError(null);
+    void startNewOrderSync(SYNC_HOURS, { forceNew: true }).catch((error) => {
+      setSyncError(error instanceof Error ? error.message : "Sync failed.");
+    });
   }
 
   return (
@@ -841,7 +868,13 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12M12 15l4-4M12 15l-4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
               Export
             </button>
-            <button type="button" className="no-btn no-btn--dark" onClick={handleSync} disabled={syncing || !configReady}>
+            <button
+              type="button"
+              className={`no-btn no-btn--dark${syncing ? " no-btn--syncing" : ""}`}
+              onClick={handleSync}
+              disabled={syncing || !configReady}
+              aria-busy={syncing}
+            >
               {syncing ? "Syncing…" : "Sync NewOrder"}
             </button>
           </div>

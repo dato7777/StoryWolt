@@ -362,8 +362,10 @@
   color: white;
 }
 
-.no-btn--dark:disabled {
+.no-btn--dark:disabled,
+.no-btn--syncing:disabled {
   opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .no-sync-meta {

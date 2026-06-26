@@ -201,6 +201,7 @@ export interface NewOrderSyncStatus {
   database_configured: boolean;
   neworder_token_configured: boolean;
   last_sync: NewOrderLastSync | null;
+  sync_in_progress?: boolean;
   pending_line_items?: number;
 }
 
@@ -268,14 +269,6 @@ export async function syncNewOrderStep(options: {
   return body as unknown as NewOrderSyncResult;
 }
 
-const SYNC_STEP_ORDER: NewOrderSyncStep[] = [
-  "catalog",
-  "customers",
-  "documents",
-  "line_items",
-  "employees",
-];
-
 const SYNC_STEP_LABELS: Record<NewOrderSyncStep, string> = {
   catalog: "Catalog",
   customers: "Customers",
@@ -284,24 +277,56 @@ const SYNC_STEP_LABELS: Record<NewOrderSyncStep, string> = {
   employees: "Employees",
 };
 
+export interface NewOrderSyncCheckpoint {
+  runId?: string;
+  hours: number;
+  stepIndex: number;
+  productPage: number;
+  documentTaskOffset: number;
+}
+
+export const NEWORDER_SYNC_STEP_ORDER: NewOrderSyncStep[] = [
+  "catalog",
+  "customers",
+  "documents",
+  "line_items",
+  "employees",
+];
+
 /** Run all sync steps sequentially (safe for Vercel — one HTTP request per step). */
 export async function runFullNewOrderSync(options?: {
   hours?: number;
+  checkpoint?: NewOrderSyncCheckpoint;
   onProgress?: (message: string) => void;
+  onCheckpoint?: (checkpoint: NewOrderSyncCheckpoint) => void;
 }): Promise<NewOrderSyncResult> {
   const hours = options?.hours ?? 24;
-  let runId: string | undefined;
-  let productPage = 1;
-  let documentTaskOffset = 0;
+  const startStepIndex = Math.max(0, options?.checkpoint?.stepIndex ?? 0);
+  let runId = options?.checkpoint?.runId;
+  let productPage = options?.checkpoint?.productPage ?? 1;
+  let documentTaskOffset = options?.checkpoint?.documentTaskOffset ?? 0;
   const warnings: string[] = [];
   let lastResult: NewOrderSyncResult | null = null;
+
+  const emitCheckpoint = (stepIndex: number) => {
+    options?.onCheckpoint?.({
+      runId,
+      hours,
+      stepIndex,
+      productPage,
+      documentTaskOffset,
+    });
+  };
 
   const report = (step: NewOrderSyncStep, detail?: string) => {
     const label = SYNC_STEP_LABELS[step];
     options?.onProgress?.(detail ? `${label}: ${detail}` : label);
   };
 
-  for (const step of SYNC_STEP_ORDER) {
+  for (let stepIndex = startStepIndex; stepIndex < NEWORDER_SYNC_STEP_ORDER.length; stepIndex += 1) {
+    const step = NEWORDER_SYNC_STEP_ORDER[stepIndex];
+    emitCheckpoint(stepIndex);
+
     if (step === "catalog") {
       let hasMore = true;
       while (hasMore) {
@@ -315,6 +340,7 @@ export async function runFullNewOrderSync(options?: {
         runId = result.run_id;
         lastResult = result;
         warnings.push(...(result.warnings ?? []));
+        emitCheckpoint(stepIndex);
         hasMore = Boolean(result.has_more);
         if (hasMore && result.next_product_page) {
           productPage = result.next_product_page;
@@ -322,6 +348,7 @@ export async function runFullNewOrderSync(options?: {
           productPage += 1;
         }
       }
+      productPage = 1;
       continue;
     }
 
@@ -340,6 +367,7 @@ export async function runFullNewOrderSync(options?: {
         runId = result.run_id;
         lastResult = result;
         warnings.push(...(result.warnings ?? []));
+        emitCheckpoint(stepIndex);
         hasMore = Boolean(result.has_more);
       }
       continue;
@@ -360,6 +388,7 @@ export async function runFullNewOrderSync(options?: {
         runId = result.run_id;
         lastResult = result;
         warnings.push(...(result.warnings ?? []));
+        emitCheckpoint(stepIndex);
         hasMore = Boolean(result.has_more);
         if (hasMore && result.next_document_task_offset != null) {
           documentTaskOffset = result.next_document_task_offset;
@@ -367,6 +396,7 @@ export async function runFullNewOrderSync(options?: {
           documentTaskOffset += 1;
         }
       }
+      documentTaskOffset = 0;
       continue;
     }
 
@@ -380,6 +410,7 @@ export async function runFullNewOrderSync(options?: {
     runId = result.run_id;
     lastResult = result;
     warnings.push(...(result.warnings ?? []));
+    emitCheckpoint(stepIndex);
   }
 
   if (!lastResult) {

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -96,7 +96,7 @@ class DevHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     load_dotenv_file(ROOT_DIR / ".env")
-    server = HTTPServer(("0.0.0.0", PORT), DevHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), DevHandler)
     print(f"Dev API running at http://127.0.0.1:{PORT}")
     if not credentials_configured():
         print("WARNING: ADMIN_PASSWORD not set — copy .env.example to .env")
