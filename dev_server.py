@@ -57,6 +57,8 @@ class DevHandler(BaseHTTPRequestHandler):
             handlers.handle_analytics_overall_get(self)
         elif path == "/api/neworder/status":
             handlers.handle_neworder_status_get(self)
+        elif path == "/api/neworder/dashboard":
+            handlers.handle_neworder_dashboard_get(self)
         elif path.startswith("/api/timelines/"):
             timeline_id = path.removeprefix("/api/timelines/").strip("/")
             if timeline_id:

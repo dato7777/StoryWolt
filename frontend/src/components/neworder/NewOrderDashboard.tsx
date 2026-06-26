@@ -1,26 +1,103 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChoosePlatformButton } from "../ChoosePlatformButton";
 import {
+  fetchNewOrderDashboard,
   fetchNewOrderStatus,
-  syncNewOrder,
+  runFullNewOrderSync,
+  type NewOrderDashboardData,
+  type NewOrderDashboardPeriod,
   type NewOrderLastSync,
 } from "../../api/client";
-import {
-  MOCK_BEST_NET_REVENUE,
-  MOCK_EMPLOYEES,
-  MOCK_KPI,
-  MOCK_ORDERS,
-  MOCK_PERIOD_LABEL,
-  MOCK_PRODUCTS,
-  MOCK_STOCK_ALERT_COUNT,
-  MOCK_TOP_PRODUCTS,
-  MOCK_WEEKLY_SALES,
-  NAV_ITEMS,
-  formatIls,
-  type NewOrderView,
-} from "../../data/neworderMockData";
+import { formatIls, NAV_ITEMS, type NewOrderView } from "../../data/neworderMockData";
 
 const NEWORDER_LOGO = "/logos/neworder.png";
+const SYNC_HOURS = 24;
+
+const PERIOD_TABS: { id: NewOrderDashboardPeriod; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "yesterday", label: "Yesterday" },
+  { id: "week", label: "Last week" },
+];
+
+const SEARCH_PLACEHOLDERS: Record<NewOrderView, string> = {
+  dashboard: "Search best sellers…",
+  analytics: "Search products…",
+  products: "Search SKU, name, category…",
+  orders: "Search document, item, employee…",
+  stock: "Search product or SKU…",
+  employees: "Search employee…",
+};
+
+function normalizeSearchQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+function matchesSearch(value: string | null | undefined, query: string): boolean {
+  if (!query) return true;
+  return (value ?? "").toLowerCase().includes(query);
+}
+
+function filterDashboardBySearch(
+  data: NewOrderDashboardData,
+  view: NewOrderView,
+  rawQuery: string,
+): NewOrderDashboardData {
+  const query = normalizeSearchQuery(rawQuery);
+  if (!query) return data;
+
+  switch (view) {
+    case "dashboard":
+      return {
+        ...data,
+        top_products: data.top_products.filter(
+          (p) => matchesSearch(p.name, query) || matchesSearch(p.category, query),
+        ),
+      };
+    case "analytics":
+      return {
+        ...data,
+        top_products: data.top_products.filter((p) => matchesSearch(p.name, query)),
+        best_net_revenue: data.best_net_revenue.filter((r) => matchesSearch(r.name, query)),
+      };
+    case "products":
+      return {
+        ...data,
+        products: data.products.filter(
+          (p) =>
+            matchesSearch(p.name, query)
+            || matchesSearch(p.sku, query)
+            || matchesSearch(p.category, query),
+        ),
+      };
+    case "orders":
+      return {
+        ...data,
+        orders: data.orders.filter(
+          (o) =>
+            matchesSearch(o.document_number, query)
+            || matchesSearch(o.product_label, query)
+            || matchesSearch(o.employee, query),
+        ),
+      };
+    case "stock":
+      return {
+        ...data,
+        low_stock: data.low_stock.filter(
+          (p) => matchesSearch(p.name, query) || matchesSearch(p.sku, query),
+        ),
+        products: data.products.filter(
+          (p) => matchesSearch(p.name, query) || matchesSearch(p.sku, query),
+        ),
+      };
+    case "employees":
+      return {
+        ...data,
+        employees: data.employees.filter((e) => matchesSearch(e.name, query)),
+      };
+    default:
+      return data;
+  }
+}
 
 function formatLastSync(lastSync: NewOrderLastSync | null): string {
   if (!lastSync?.finished_at && !lastSync?.started_at) {
@@ -37,6 +114,19 @@ function formatLastSync(lastSync: NewOrderLastSync | null): string {
   });
 }
 
+function formatOrderDate(iso: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function syncStatusLabel(lastSync: NewOrderLastSync | null): string {
   if (!lastSync) return "No sync yet";
   if (lastSync.status === "running") return "Sync in progress…";
@@ -50,7 +140,72 @@ interface NewOrderDashboardProps {
   onBackToHub: () => void;
 }
 
-function CustomerTachometer() {
+function PeriodTimeTabs({
+  active,
+  onChange,
+}: {
+  active: NewOrderDashboardPeriod;
+  onChange: (period: NewOrderDashboardPeriod) => void;
+}) {
+  return (
+    <div className="no-time-tabs">
+      {PERIOD_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          className={active === tab.id ? "active" : ""}
+          onClick={() => onChange(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DashboardSearchField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="no-search-field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+      <input
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label="Search current page"
+      />
+      {value && (
+        <button
+          type="button"
+          className="no-search-clear"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+        >
+          ×
+        </button>
+      )}
+    </label>
+  );
+}
+
+function CustomerTachometer({
+  uniqueCustomers,
+  volumePct,
+}: {
+  uniqueCustomers: number;
+  volumePct: number;
+}) {
   const segments = 32;
   const cx = 100;
   const cy = 98;
@@ -58,7 +213,7 @@ function CustomerTachometer() {
   const outerR = 78;
   const startAngle = -180;
   const endAngle = 0;
-  const filledCount = Math.round(segments * (MOCK_KPI.customerVolumePct / 100));
+  const filledCount = Math.round(segments * (Math.min(100, volumePct) / 100));
 
   return (
     <div className="no-tachometer">
@@ -87,16 +242,22 @@ function CustomerTachometer() {
         })}
       </svg>
       <div className="no-tachometer-center">
-        <strong>{MOCK_KPI.customerCount}</strong>
-        <span>New Customers</span>
+        <strong>{uniqueCustomers}</strong>
+        <span>Unique Customers</span>
       </div>
     </div>
   );
 }
 
-function DashboardOverview() {
-  const maxBar = Math.max(...MOCK_WEEKLY_SALES.map((d) => d.value));
-  const highlightDay = "Thu";
+function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
+  const { kpi, daily_sales, top_products, period_label, chart_title } = data;
+  const lastActiveIndex = daily_sales.reduce(
+    (best, point, index) => (point.revenue > (daily_sales[best]?.revenue ?? -1) ? index : best),
+    0,
+  );
+  const marginPct = kpi.total_sales > 0
+    ? Math.round((kpi.net_revenue / kpi.total_sales) * 100)
+    : 0;
 
   return (
     <div className="no-dash-grid">
@@ -106,103 +267,143 @@ function DashboardOverview() {
             <span>Total Sales</span>
             <button type="button" className="no-dots" aria-label="Options">···</button>
           </div>
-          <strong>{formatIls(MOCK_KPI.totalSales)}</strong>
-          <span className="no-pill no-pill--up">+{MOCK_KPI.totalSalesChangePct}% vs last month</span>
+          <strong>{formatIls(kpi.total_sales)}</strong>
+          <span className="no-pill no-pill--up">{kpi.order_count} orders · incl. VAT</span>
+        </article>
+        <article className="no-metric-card no-metric-card--net">
+          <div className="no-metric-head">
+            <span>Net Revenue</span>
+            <button type="button" className="no-dots" aria-label="Options">···</button>
+          </div>
+          <strong>{formatIls(kpi.net_revenue)}</strong>
+          <span className="no-pill no-pill--up">Sales − cost (incl. VAT) · {marginPct}% margin</span>
         </article>
         <article className="no-metric-card">
           <div className="no-metric-head">
             <span>Total Cost</span>
             <button type="button" className="no-dots" aria-label="Options">···</button>
           </div>
-          <strong className="no-metric-dark">{formatIls(MOCK_KPI.totalCost)}</strong>
-          <span className="no-pill no-pill--down">{MOCK_KPI.totalCostChangePct}% vs last month</span>
+          <strong className="no-metric-dark">{formatIls(kpi.total_cost)}</strong>
+          <span className="no-pill no-pill--down">{period_label}</span>
         </article>
       </div>
 
-      <article className="no-metric-card no-metric-card--wide">
-        <div className="no-metric-head">
-          <span>Units Sold</span>
-          <div className="no-time-tabs">
-            {["Today", "Week", "Month"].map((t, i) => (
-              <button key={t} type="button" className={i === 1 ? "active" : ""}>{t}</button>
-            ))}
+      <div className="no-dash-col no-dash-col--units">
+        <article className="no-metric-card no-metric-card--compact">
+          <div className="no-metric-head">
+            <span>Units Sold</span>
           </div>
-        </div>
-        <strong className="no-metric-dark">{MOCK_KPI.unitsSold.toLocaleString()}</strong>
-        <span className="no-pill no-pill--up">+{MOCK_KPI.netRevenueChangePct}% vs last month</span>
-        <div className="no-progress-track">
-          <div className="no-progress-fill" style={{ width: "68%" }} />
-        </div>
-        <div className="no-progress-foot">
-          <span>Net revenue {formatIls(MOCK_KPI.netRevenue)}</span>
-          <span className="no-pill no-pill--up no-pill--sm">+{MOCK_KPI.unitsSoldToday} today</span>
-        </div>
-      </article>
+          <strong className="no-metric-dark">{kpi.units_sold.toLocaleString()}</strong>
+          <span className="no-pill no-pill--up no-pill--sm">{period_label}</span>
+          <div className="no-progress-track no-progress-track--compact">
+            <div
+              className="no-progress-fill"
+              style={{
+                width: kpi.total_sales > 0
+                  ? `${Math.min(100, Math.round((kpi.net_revenue / kpi.total_sales) * 100))}%`
+                  : "0%",
+              }}
+            />
+          </div>
+          <div className="no-progress-foot no-progress-foot--compact">
+            <span>Net {formatIls(kpi.net_revenue)}</span>
+          </div>
+        </article>
+        <article className="no-metric-card no-metric-card--compact no-metric-card--purchases">
+          <div className="no-metric-head">
+            <span>Purchases</span>
+          </div>
+          <strong className="no-metric-dark">{kpi.order_count.toLocaleString()}</strong>
+          <span className="no-pill no-pill--up no-pill--sm">sales in {period_label.toLowerCase()}</span>
+          <div className="no-progress-track no-progress-track--compact">
+            <div
+              className="no-progress-fill"
+              style={{
+                width: kpi.order_count > 0
+                  ? `${Math.min(100, kpi.customer_volume_pct)}%`
+                  : "0%",
+              }}
+            />
+          </div>
+          <div className="no-progress-foot no-progress-foot--compact">
+            <span>{kpi.unique_customer_count} unique customers</span>
+          </div>
+        </article>
+      </div>
 
       <article className="no-metric-card no-metric-card--gauge">
         <div className="no-metric-head"><span>Customers Volume</span></div>
-        <CustomerTachometer />
+        <CustomerTachometer
+          uniqueCustomers={kpi.unique_customer_count}
+          volumePct={kpi.customer_volume_pct}
+        />
         <p className="no-gauge-note">
-          Your customer volume has increased
-          <span className="no-pill no-pill--up no-pill--sm">+{MOCK_KPI.customerChangePct}%</span>
+          {kpi.unique_customer_count} unique customers
+          {kpi.order_count > 0 && (
+            <span className="no-pill no-pill--up no-pill--sm">{kpi.customer_volume_pct}% of orders</span>
+          )}
         </p>
       </article>
 
       <article className="no-metric-card no-metric-card--chart">
         <div className="no-metric-head">
-          <span>Weekly Revenue</span>
-          <div className="no-chart-tabs">
-            <button type="button" className="active">Sales</button>
-            <button type="button">Margin</button>
-            <select className="no-mini-select" defaultValue="weekly">
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
+          <span>{chart_title ?? "Revenue"}</span>
+          <span className="no-muted-sm">{period_label}</span>
         </div>
         <p className="no-chart-lead">
-          <strong>+{MOCK_KPI.totalSalesChangePct}%</strong>
-          Revenue trending up this week
+          <strong>{formatIls(kpi.total_sales)}</strong>
+          total · {kpi.order_count} purchases
         </p>
-        <div className="no-week-bars">
-          {MOCK_WEEKLY_SALES.map((d) => (
-            <div key={d.day} className="no-week-bar-wrap">
-              <span className={`no-bar-badge ${d.change >= 0 ? "up" : "down"}`}>
-                {d.change >= 0 ? "+" : ""}{d.change}%
-              </span>
-              <div
-                className={`no-week-bar ${d.day === highlightDay ? "no-week-bar--hi" : ""}`}
-                style={{ height: `${(d.value / maxBar) * 100}%` }}
-              />
-              <span className="no-week-label">{d.day}</span>
-            </div>
-          ))}
+        <div className={`no-week-bars ${daily_sales.length > 12 ? "no-week-bars--dense" : ""}`}>
+          {daily_sales.length === 0 ? (
+            <p className="no-muted-sm">No sales in {period_label.toLowerCase()}.</p>
+          ) : (
+            daily_sales.map((d, index) => {
+              const barHeight = d.revenue > 0 ? Math.max(d.value, 6) : 0;
+              return (
+              <div key={d.date} className="no-week-bar-wrap" title={`${d.day} · ${formatIls(d.revenue)}`}>
+                <div className="no-week-bar-track">
+                  <div
+                    className={`no-week-bar ${index === lastActiveIndex && d.revenue > 0 ? "no-week-bar--hi" : ""}`}
+                    style={{ height: `${barHeight}%` }}
+                  />
+                </div>
+                <span className="no-week-label">{d.day}</span>
+                {d.sub_label && <span className="no-week-sublabel">{d.sub_label}</span>}
+              </div>
+            );
+            })
+          )}
         </div>
       </article>
 
       <article className="no-metric-card no-metric-card--rank">
         <div className="no-metric-head">
           <span>Best Selling Products</span>
-          <span className="no-muted-sm">Last 30 days</span>
+          <span className="no-muted-sm">{period_label}</span>
         </div>
-        <ul className="no-rank-list">
-          {MOCK_TOP_PRODUCTS.map((p) => (
-            <li key={p.rank} className={`no-rank-item no-rank-item--${p.rank}`}>
-              <div className="no-rank-thumb">{p.category === "Devices" ? "📱" : "🎧"}</div>
-              <div className="no-rank-body">
-                <strong>{p.name}</strong>
-                <span>{p.orders} orders · {formatIls(p.revenue)}</span>
-              </div>
-              <span className="no-rank-badge">#{p.rank}</span>
-            </li>
-          ))}
-        </ul>
+        {top_products.length === 0 ? (
+          <p className="no-muted-sm">No product sales in this period.</p>
+        ) : (
+          <ul className="no-rank-list">
+            {top_products.map((p) => (
+              <li key={p.rank} className={`no-rank-item no-rank-item--${p.rank}`}>
+                <div className="no-rank-thumb">{p.category === "Devices" ? "📱" : "🎧"}</div>
+                <div className="no-rank-body">
+                  <strong>{p.name}</strong>
+                  <span>{p.orders} units · {formatIls(p.revenue)}</span>
+                </div>
+                <span className="no-rank-badge">#{p.rank}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </article>
     </div>
   );
 }
 
-function AnalyticsView() {
+function AnalyticsView({ data }: { data: NewOrderDashboardData }) {
   return (
     <div className="no-table-grid">
       <article className="no-metric-card no-metric-card--full">
@@ -212,14 +413,18 @@ function AnalyticsView() {
             <tr><th>#</th><th>Product</th><th>Units</th><th>Revenue</th></tr>
           </thead>
           <tbody>
-            {MOCK_TOP_PRODUCTS.map((p) => (
-              <tr key={p.name}>
-                <td>{p.rank}</td>
-                <td>{p.name}</td>
-                <td>{p.orders}</td>
-                <td>{formatIls(p.revenue)}</td>
-              </tr>
-            ))}
+            {data.top_products.length === 0 ? (
+              <tr><td colSpan={4}>No data for {data.period_label.toLowerCase()}.</td></tr>
+            ) : (
+              data.top_products.map((p) => (
+                <tr key={p.rank}>
+                  <td>{p.rank}</td>
+                  <td>{p.name}</td>
+                  <td>{p.orders}</td>
+                  <td>{formatIls(p.revenue)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </article>
@@ -230,14 +435,18 @@ function AnalyticsView() {
             <tr><th>#</th><th>Product</th><th>Net Revenue</th><th>Margin</th></tr>
           </thead>
           <tbody>
-            {MOCK_BEST_NET_REVENUE.map((r, i) => (
-              <tr key={r.name}>
-                <td>{i + 1}</td>
-                <td>{r.name}</td>
-                <td>{formatIls(r.net)}</td>
-                <td>{r.marginPct}%</td>
-              </tr>
-            ))}
+            {data.best_net_revenue.length === 0 ? (
+              <tr><td colSpan={4}>No data for {data.period_label.toLowerCase()}.</td></tr>
+            ) : (
+              data.best_net_revenue.map((r, i) => (
+                <tr key={r.name}>
+                  <td>{i + 1}</td>
+                  <td>{r.name}</td>
+                  <td>{formatIls(r.net)}</td>
+                  <td>{r.margin_pct}%</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </article>
@@ -245,10 +454,17 @@ function AnalyticsView() {
   );
 }
 
-function ProductsView() {
+function ProductsView({ data }: { data: NewOrderDashboardData }) {
+  const total = data.products_total ?? data.products.length;
+  const catalogNote = "Full synced catalog — not filtered by period";
   return (
     <article className="no-metric-card no-metric-card--full">
-      <div className="no-metric-head"><span>Product Catalog</span></div>
+      <div className="no-metric-head">
+        <span>Product Catalog</span>
+        <span className="no-muted-sm">
+          {data.products.length.toLocaleString()} of {total.toLocaleString()} products · {catalogNote}
+        </span>
+      </div>
       <div className="no-table-scroll">
         <table className="no-table">
           <thead>
@@ -257,17 +473,21 @@ function ProductsView() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_PRODUCTS.map((p) => (
-              <tr key={p.id}>
-                <td className="no-mono">{p.sku}</td>
-                <td>{p.name}</td>
-                <td>{p.category}</td>
-                <td>{formatIls(p.cost)}</td>
-                <td>{formatIls(p.price)}</td>
-                <td className={p.stock <= p.minStock ? "no-warn" : ""}>{p.stock}</td>
-                <td><span className={`no-tag no-tag--${p.isActive ? "ok" : "off"}`}>{p.isActive ? "Active" : "Inactive"}</span></td>
-              </tr>
-            ))}
+            {data.products.length === 0 ? (
+              <tr><td colSpan={7}>No products synced yet.</td></tr>
+            ) : (
+              data.products.map((p) => (
+                <tr key={p.id}>
+                  <td className="no-mono">{p.sku}</td>
+                  <td>{p.name}</td>
+                  <td>{p.category}</td>
+                  <td>{formatIls(p.cost)}</td>
+                  <td>{formatIls(p.price)}</td>
+                  <td className={p.stock <= p.min_stock ? "no-warn" : ""}>{p.stock}</td>
+                  <td><span className={`no-tag no-tag--${p.is_active ? "ok" : "off"}`}>{p.is_active ? "Active" : "Inactive"}</span></td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -275,26 +495,38 @@ function ProductsView() {
   );
 }
 
-function OrdersView() {
+function OrdersView({ data }: { data: NewOrderDashboardData }) {
+  const total = data.orders_total ?? data.kpi.order_count;
+  const truncated = data.orders.length < total;
   return (
     <article className="no-metric-card no-metric-card--full">
-      <div className="no-metric-head"><span>Recent Orders / Documents</span></div>
+      <div className="no-metric-head">
+        <span>Orders / Documents</span>
+        <span className="no-muted-sm">
+          {data.orders.length.toLocaleString()} of {total.toLocaleString()} in {data.period_label.toLowerCase()}
+          {truncated ? " · list truncated" : ""}
+        </span>
+      </div>
       <div className="no-table-scroll">
         <table className="no-table">
           <thead>
             <tr><th>Document</th><th>Item</th><th>Date</th><th>Employee</th><th>Total</th><th>Status</th></tr>
           </thead>
           <tbody>
-            {MOCK_ORDERS.map((o) => (
-              <tr key={o.id}>
-                <td className="no-mono">{o.documentNumber}</td>
-                <td>{o.productLabel}</td>
-                <td>{o.date}</td>
-                <td>{o.employee}</td>
-                <td>{formatIls(o.total)}</td>
-                <td><span className={`no-tag no-tag--${o.status === "completed" ? "ok" : "pending"}`}>{o.status}</span></td>
-              </tr>
-            ))}
+            {data.orders.length === 0 ? (
+              <tr><td colSpan={6}>No orders in {data.period_label.toLowerCase()}.</td></tr>
+            ) : (
+              data.orders.map((o) => (
+                <tr key={o.id}>
+                  <td className="no-mono">{o.document_number}</td>
+                  <td>{o.product_label}</td>
+                  <td>{formatOrderDate(o.date)}</td>
+                  <td>{o.employee}</td>
+                  <td>{formatIls(o.total)}</td>
+                  <td><span className="no-tag no-tag--ok">{o.status}</span></td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -302,18 +534,22 @@ function OrdersView() {
   );
 }
 
-function StockView() {
-  const low = MOCK_PRODUCTS.filter((p) => p.stock <= p.minStock);
+function StockView({ data }: { data: NewOrderDashboardData }) {
+  const low = data.low_stock;
   return (
     <div className="no-table-grid">
       <article className="no-metric-card no-metric-card--dark no-metric-card--full">
         <span className="no-pill no-pill--down">Stock Alert</span>
         <h3 className="no-alert-title">{low.length} products below minimum stock</h3>
-        <ul className="no-alert-list">
-          {low.map((p) => (
-            <li key={p.id}>{p.name} — {p.stock} in stock (min {p.minStock})</li>
-          ))}
-        </ul>
+        {low.length === 0 ? (
+          <p className="no-muted-sm">All stocked products are above minimum levels.</p>
+        ) : (
+          <ul className="no-alert-list">
+            {low.map((p) => (
+              <li key={p.id}>{p.name} — {p.stock} in stock (min {p.min_stock})</li>
+            ))}
+          </ul>
+        )}
       </article>
       <article className="no-metric-card no-metric-card--full">
         <div className="no-metric-head"><span>Stock by Product</span></div>
@@ -322,16 +558,16 @@ function StockView() {
             <tr><th>Product</th><th>SKU</th><th>Stock</th><th>Minimum</th><th>Status</th></tr>
           </thead>
           <tbody>
-            {MOCK_PRODUCTS.map((p) => (
+            {data.products.filter((p) => p.stock > 0 || p.min_stock > 0).map((p) => (
               <tr key={p.id}>
                 <td>{p.name}</td>
                 <td className="no-mono">{p.sku}</td>
                 <td>{p.stock}</td>
-                <td>{p.minStock}</td>
+                <td>{p.min_stock}</td>
                 <td>
                   {p.stock === 0 ? (
                     <span className="no-tag no-tag--danger">Out</span>
-                  ) : p.stock <= p.minStock ? (
+                  ) : p.stock <= p.min_stock ? (
                     <span className="no-tag no-tag--pending">Low</span>
                   ) : (
                     <span className="no-tag no-tag--ok">OK</span>
@@ -346,57 +582,154 @@ function StockView() {
   );
 }
 
-function EmployeesView() {
+function formatEmployeeHours(hours: number | undefined | null): string {
+  const value = Number(hours ?? 0);
+  if (!Number.isFinite(value) || value <= 0) {
+    return "—";
+  }
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}h`;
+}
+
+function EmployeesView({ data }: { data: NewOrderDashboardData }) {
+  const hoursLabel = `Hours (${data.period_label})`;
   return (
     <article className="no-metric-card no-metric-card--full">
       <div className="no-metric-head"><span>Employee Performance</span></div>
       <table className="no-table">
         <thead>
-          <tr><th>Employee</th><th>Sales</th><th>Orders</th><th>Hours (month)</th><th>Sales / Hour</th></tr>
+          <tr><th>Employee</th><th>Sales</th><th>Orders</th><th>{hoursLabel}</th><th>Sales / Hour</th></tr>
         </thead>
         <tbody>
-          {MOCK_EMPLOYEES.map((e) => (
-            <tr key={e.id}>
-              <td>{e.name}</td>
-              <td>{formatIls(e.salesTotal)}</td>
-              <td>{e.orderCount}</td>
-              <td>{e.hoursThisMonth}h</td>
-              <td>{formatIls(Math.round(e.salesTotal / e.hoursThisMonth))}</td>
-            </tr>
-          ))}
+          {data.employees.length === 0 ? (
+            <tr><td colSpan={5}>No employee sales in {data.period_label.toLowerCase()}.</td></tr>
+          ) : (
+            data.employees.map((e) => {
+              const hours = Number(e.hours_in_period ?? 0);
+              return (
+              <tr key={e.id}>
+                <td>{e.name}</td>
+                <td>{formatIls(e.sales_total)}</td>
+                <td>{e.order_count}</td>
+                <td>{formatEmployeeHours(hours)}</td>
+                <td>{formatIls(hours > 0 ? Math.round(e.sales_total / hours) : 0)}</td>
+              </tr>
+              );
+            })
+          )}
         </tbody>
       </table>
     </article>
   );
 }
 
-function renderView(view: NewOrderView) {
+function renderView(
+  view: NewOrderView,
+  data: NewOrderDashboardData,
+) {
   switch (view) {
-    case "dashboard": return <DashboardOverview />;
-    case "analytics": return <AnalyticsView />;
-    case "products": return <ProductsView />;
-    case "orders": return <OrdersView />;
-    case "stock": return <StockView />;
-    case "employees": return <EmployeesView />;
+    case "dashboard":
+      return <DashboardOverview data={data} />;
+    case "analytics": return <AnalyticsView data={data} />;
+    case "products": return <ProductsView data={data} />;
+    case "orders": return <OrdersView data={data} />;
+    case "stock": return <StockView data={data} />;
+    case "employees": return <EmployeesView data={data} />;
   }
 }
 
 const VIEW_META: Record<NewOrderView, { title: string; subtitle: string }> = {
   dashboard: { title: "Sales Overview", subtitle: "Your current sales summary and store activity" },
   analytics: { title: "Analytics", subtitle: "Best sellers and net revenue by period" },
-  products: { title: "Products", subtitle: "Catalog with SKU, cost, price and stock" },
-  orders: { title: "Orders", subtitle: "Documents and invoices from NewOrder" },
+  products: { title: "Products", subtitle: "Full synced catalog — SKU, cost, price and stock (not period-filtered)" },
+  orders: { title: "Orders", subtitle: "All documents and invoices for the selected period" },
   stock: { title: "Stock", subtitle: "Inventory levels and low-stock alerts" },
   employees: { title: "Employees", subtitle: "Sales performance and working hours" },
+};
+
+const EMPTY_DASHBOARD: NewOrderDashboardData = {
+  period: "today",
+  period_label: "Today",
+  since: "",
+  until: null,
+  chart_granularity: "hour",
+  chart_title: "Revenue by Hour",
+  kpi: {
+    total_sales: 0,
+    total_cost: 0,
+    net_revenue: 0,
+    units_sold: 0,
+    order_count: 0,
+    customer_count: 0,
+    unique_customer_count: 0,
+    orders_with_customer: 0,
+    customer_volume_pct: 0,
+    low_stock_count: 0,
+  },
+  daily_sales: [],
+  top_products: [],
+  best_net_revenue: [],
+  orders: [],
+  orders_total: 0,
+  products: [],
+  products_total: 0,
+  employees: [],
+  low_stock: [],
 };
 
 export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardProps) {
   const [view, setView] = useState<NewOrderView>("dashboard");
   const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<NewOrderLastSync | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [configReady, setConfigReady] = useState(true);
+  const [dashboard, setDashboard] = useState<NewOrderDashboardData>(EMPTY_DASHBOARD);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<NewOrderDashboardPeriod>("today");
+  const [searchQuery, setSearchQuery] = useState("");
+  const fetchGenerationRef = useRef(0);
   const meta = VIEW_META[view];
+  const stockAlertCount = dashboard.kpi.low_stock_count;
+  const filteredDashboard = filterDashboardBySearch(dashboard, view, searchQuery);
+
+  const loadDashboard = useCallback(async (activePeriod: NewOrderDashboardPeriod) => {
+    const fetchId = ++fetchGenerationRef.current;
+    const activeLabel = PERIOD_TABS.find((t) => t.id === activePeriod)?.label ?? "Today";
+    setDashboardLoading(true);
+    setDashboardError(null);
+    setDashboard((prev) => ({
+      ...prev,
+      period: activePeriod,
+      period_label: activeLabel,
+      kpi: { ...EMPTY_DASHBOARD.kpi },
+      daily_sales: [],
+      top_products: [],
+      best_net_revenue: [],
+      orders: [],
+      employees: [],
+    }));
+    try {
+      const data = await fetchNewOrderDashboard({ period: activePeriod });
+      if (fetchId !== fetchGenerationRef.current) {
+        return;
+      }
+      setDashboard(data);
+    } catch (error) {
+      if (fetchId !== fetchGenerationRef.current) {
+        return;
+      }
+      setDashboardError(error instanceof Error ? error.message : "Failed to load dashboard.");
+    } finally {
+      if (fetchId === fetchGenerationRef.current) {
+        setDashboardLoading(false);
+      }
+    }
+  }, []);
+
+  const handlePeriodChange = useCallback((next: NewOrderDashboardPeriod) => {
+    setPeriod(next);
+  }, []);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -413,21 +746,38 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
     void refreshStatus();
   }, [refreshStatus]);
 
+  useEffect(() => {
+    void loadDashboard(period);
+  }, [period, loadDashboard]);
+
+  useEffect(() => {
+    setSearchQuery("");
+  }, [view]);
+
   async function handleSync() {
     setSyncing(true);
     setSyncError(null);
+    setSyncProgress("Starting…");
     try {
-      const result = await syncNewOrder({ mode: "full", days: 30 });
-      setLastSync(result.last_sync);
+      const result = await runFullNewOrderSync({
+        hours: SYNC_HOURS,
+        onProgress: setSyncProgress,
+      });
+      await refreshStatus();
+      await loadDashboard(period);
+      if (result.last_sync) {
+        setLastSync(result.last_sync);
+      }
       if (result.warnings?.length) {
         setSyncError(result.warnings.join(" · "));
-      } else if (!result.ok) {
-        setSyncError("Sync finished with issues. Check server logs for details.");
+      } else if (result.status === "partial") {
+        setSyncError("Sync finished with partial data. Run sync again to continue.");
       }
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : "Sync failed.");
     } finally {
       setSyncing(false);
+      setSyncProgress(null);
     }
   }
 
@@ -450,8 +800,8 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
               onClick={() => setView(item.id)}
             >
               {item.label}
-              {item.id === "stock" && MOCK_STOCK_ALERT_COUNT > 0 && (
-                <span className="no-nav-alert">{MOCK_STOCK_ALERT_COUNT}</span>
+              {item.id === "stock" && stockAlertCount > 0 && (
+                <span className="no-nav-alert">{stockAlertCount}</span>
               )}
             </button>
           ))}
@@ -460,7 +810,7 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
         <div className="no-header-user">
           <button type="button" className="no-icon-round" title="Notifications">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
-            {MOCK_STOCK_ALERT_COUNT > 0 && <span className="no-dot" />}
+            {stockAlertCount > 0 && <span className="no-dot" />}
           </button>
           <div className="no-user-chip">
             <span className="no-user-avatar">{adminName.charAt(0).toUpperCase()}</span>
@@ -479,9 +829,14 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
             <p>{meta.subtitle}</p>
           </div>
           <div className="no-page-actions">
-            <select className="no-select" defaultValue={MOCK_PERIOD_LABEL}>
-              <option>{MOCK_PERIOD_LABEL}</option>
-            </select>
+            <div className="no-page-toolbar">
+              <DashboardSearchField
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={SEARCH_PLACEHOLDERS[view]}
+              />
+              <PeriodTimeTabs active={period} onChange={handlePeriodChange} />
+            </div>
             <button type="button" className="no-btn no-btn--ghost">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12M12 15l4-4M12 15l-4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
               Export
@@ -492,11 +847,16 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
           </div>
         </div>
         <p className="no-sync-meta">
+          {syncing && syncProgress ? `${syncProgress} · ` : ""}
           {syncStatusLabel(lastSync)} · Last synced: {formatLastSync(lastSync)}
           {!configReady ? " · Configure DATABASE_URL and NEWORDER_API_TOKEN on the server" : ""}
         </p>
         {syncError && <p className="no-sync-error">{syncError}</p>}
-        {renderView(view)}
+        {dashboardError && <p className="no-sync-error">{dashboardError}</p>}
+        {dashboardLoading && (
+          <p className="no-muted-sm">Updating {PERIOD_TABS.find((t) => t.id === period)?.label ?? "period"}…</p>
+        )}
+        {renderView(view, filteredDashboard)}
       </main>
     </div>
   );

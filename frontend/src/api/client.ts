@@ -201,13 +201,17 @@ export interface NewOrderSyncStatus {
   database_configured: boolean;
   neworder_token_configured: boolean;
   last_sync: NewOrderLastSync | null;
+  pending_line_items?: number;
 }
 
-export interface NewOrderSyncResult extends NewOrderSyncStatus {
+export type NewOrderSyncStep = "catalog" | "customers" | "documents" | "line_items" | "employees";
+
+export interface NewOrderSyncResult {
   ok: boolean;
   status: string;
   run_id: string;
-  mode: string;
+  step?: NewOrderSyncStep;
+  mode?: string;
   api_calls: number;
   branches: number;
   categories: number;
@@ -220,6 +224,11 @@ export interface NewOrderSyncResult extends NewOrderSyncStatus {
   employees: number;
   attendance_rows: number;
   warnings: string[];
+  has_more?: boolean;
+  next_product_page?: number | null;
+  next_document_task_offset?: number | null;
+  documents_remaining?: number;
+  last_sync?: NewOrderLastSync | null;
 }
 
 /** NewOrder sync configuration and last run metadata. */
@@ -231,10 +240,162 @@ export async function fetchNewOrderStatus(): Promise<NewOrderSyncStatus> {
   return body as unknown as NewOrderSyncStatus;
 }
 
-/** Trigger a NewOrder → Supabase sync (catalog, sales, or full). */
+/** Run one chunked NewOrder sync step (commits independently). */
+export async function syncNewOrderStep(options: {
+  step: NewOrderSyncStep;
+  hours?: number;
+  runId?: string;
+  productPageStart?: number;
+  documentTaskOffset?: number;
+  finalize?: boolean;
+}): Promise<NewOrderSyncResult> {
+  const response = await fetch(`${API_BASE}/api/neworder/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({
+      step: options.step,
+      hours: options.hours ?? 24,
+      run_id: options.runId,
+      product_page_start: options.productPageStart ?? 1,
+      document_task_offset: options.documentTaskOffset ?? 0,
+      finalize: options.finalize ?? false,
+    }),
+  });
+  const body = await parseApiResponse(response);
+  return body as unknown as NewOrderSyncResult;
+}
+
+const SYNC_STEP_ORDER: NewOrderSyncStep[] = [
+  "catalog",
+  "customers",
+  "documents",
+  "line_items",
+  "employees",
+];
+
+const SYNC_STEP_LABELS: Record<NewOrderSyncStep, string> = {
+  catalog: "Catalog",
+  customers: "Customers",
+  documents: "Orders",
+  line_items: "Line items",
+  employees: "Employees",
+};
+
+/** Run all sync steps sequentially (safe for Vercel — one HTTP request per step). */
+export async function runFullNewOrderSync(options?: {
+  hours?: number;
+  onProgress?: (message: string) => void;
+}): Promise<NewOrderSyncResult> {
+  const hours = options?.hours ?? 24;
+  let runId: string | undefined;
+  let productPage = 1;
+  let documentTaskOffset = 0;
+  const warnings: string[] = [];
+  let lastResult: NewOrderSyncResult | null = null;
+
+  const report = (step: NewOrderSyncStep, detail?: string) => {
+    const label = SYNC_STEP_LABELS[step];
+    options?.onProgress?.(detail ? `${label}: ${detail}` : label);
+  };
+
+  for (const step of SYNC_STEP_ORDER) {
+    if (step === "catalog") {
+      let hasMore = true;
+      while (hasMore) {
+        report("catalog", `page ${productPage}`);
+        const result = await syncNewOrderStep({
+          step: "catalog",
+          hours,
+          runId,
+          productPageStart: productPage,
+        });
+        runId = result.run_id;
+        lastResult = result;
+        warnings.push(...(result.warnings ?? []));
+        hasMore = Boolean(result.has_more);
+        if (hasMore && result.next_product_page) {
+          productPage = result.next_product_page;
+        } else if (hasMore) {
+          productPage += 1;
+        }
+      }
+      continue;
+    }
+
+    if (step === "line_items") {
+      let hasMore = true;
+      let batch = 0;
+      while (hasMore) {
+        batch += 1;
+        report("line_items", `batch ${batch}`);
+        const result = await syncNewOrderStep({
+          step: "line_items",
+          hours,
+          runId,
+          finalize: false,
+        });
+        runId = result.run_id;
+        lastResult = result;
+        warnings.push(...(result.warnings ?? []));
+        hasMore = Boolean(result.has_more);
+      }
+      continue;
+    }
+
+    if (step === "documents") {
+      let hasMore = true;
+      let batch = 0;
+      while (hasMore) {
+        batch += 1;
+        report("documents", `batch ${batch}`);
+        const result = await syncNewOrderStep({
+          step: "documents",
+          hours,
+          runId,
+          documentTaskOffset,
+        });
+        runId = result.run_id;
+        lastResult = result;
+        warnings.push(...(result.warnings ?? []));
+        hasMore = Boolean(result.has_more);
+        if (hasMore && result.next_document_task_offset != null) {
+          documentTaskOffset = result.next_document_task_offset;
+        } else if (hasMore) {
+          documentTaskOffset += 1;
+        }
+      }
+      continue;
+    }
+
+    report(step);
+    const result = await syncNewOrderStep({
+      step,
+      hours,
+      runId,
+      finalize: step === "employees",
+    });
+    runId = result.run_id;
+    lastResult = result;
+    warnings.push(...(result.warnings ?? []));
+  }
+
+  if (!lastResult) {
+    throw new Error("Sync did not start.");
+  }
+
+  return {
+    ...lastResult,
+    warnings: [...new Set(warnings)],
+  };
+}
+
+/** Trigger a single-process NewOrder sync (best for local dev). */
 export async function syncNewOrder(options?: {
   mode?: "catalog" | "sales" | "full";
-  days?: number;
+  hours?: number;
 }): Promise<NewOrderSyncResult> {
   const response = await fetch(`${API_BASE}/api/neworder/sync`, {
     method: "POST",
@@ -244,9 +405,123 @@ export async function syncNewOrder(options?: {
     },
     body: JSON.stringify({
       mode: options?.mode ?? "full",
-      days: options?.days ?? 30,
+      hours: options?.hours ?? 24,
     }),
   });
   const body = await parseApiResponse(response);
   return body as unknown as NewOrderSyncResult;
+}
+
+export type NewOrderDashboardPeriod = "today" | "yesterday" | "week";
+
+export interface NewOrderDashboardKpi {
+  total_sales: number;
+  total_cost: number;
+  net_revenue: number;
+  units_sold: number;
+  order_count: number;
+  customer_count: number;
+  unique_customer_count: number;
+  orders_with_customer: number;
+  customer_volume_pct: number;
+  low_stock_count: number;
+}
+
+export interface NewOrderDashboardData {
+  period: NewOrderDashboardPeriod | "hours";
+  period_label: string;
+  since: string;
+  until: string | null;
+  kpi: NewOrderDashboardKpi;
+  chart_granularity?: "hour" | "day";
+  chart_title?: string;
+  daily_sales: { day: string; sub_label?: string; date: string; revenue: number; value: number; orders?: number }[];
+  top_products: {
+    rank: number;
+    name: string;
+    category: string;
+    orders: number;
+    revenue: number;
+  }[];
+  best_net_revenue: { name: string; net: number; margin_pct: number }[];
+  orders: {
+    id: string;
+    document_number: string;
+    product_label: string;
+    category: string;
+    date: string;
+    status: string;
+    total: number;
+    employee: string;
+  }[];
+  orders_total?: number;
+  products: {
+    id: string;
+    sku: string;
+    name: string;
+    category: string;
+    cost: number;
+    price: number;
+    stock: number;
+    min_stock: number;
+    is_active: boolean;
+  }[];
+  products_total?: number;
+  employees: {
+    id: string;
+    name: string;
+    sales_total: number;
+    order_count: number;
+    hours_in_period: number;
+  }[];
+  low_stock: {
+    id: string;
+    name: string;
+    sku: string;
+    stock: number;
+    min_stock: number;
+  }[];
+}
+
+function normalizeDashboardEmployee(
+  row: NewOrderDashboardData["employees"][number] & { hours_this_month?: number },
+): NewOrderDashboardData["employees"][number] {
+  const rawHours = row.hours_in_period ?? row.hours_this_month ?? 0;
+  const hours = Number(rawHours);
+  return {
+    ...row,
+    hours_in_period: Number.isFinite(hours) ? hours : 0,
+  };
+}
+
+function normalizeDashboardData(data: NewOrderDashboardData): NewOrderDashboardData {
+  const orders = data.orders ?? [];
+  const products = data.products ?? [];
+  return {
+    ...data,
+    orders,
+    orders_total: data.orders_total ?? data.kpi?.order_count ?? orders.length,
+    products,
+    products_total: data.products_total ?? products.length,
+    employees: (data.employees ?? []).map((row) => normalizeDashboardEmployee(row)),
+  };
+}
+
+/** Load NewOrder dashboard aggregates from Supabase for a calendar period. */
+export async function fetchNewOrderDashboard(options?: {
+  period?: NewOrderDashboardPeriod;
+  hours?: number;
+}): Promise<NewOrderDashboardData> {
+  const params = new URLSearchParams();
+  if (options?.hours != null) {
+    params.set("hours", String(options.hours));
+  } else {
+    params.set("period", options?.period ?? "today");
+  }
+  const response = await fetch(`${API_BASE}/api/neworder/dashboard?${params}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  const body = await parseApiResponse(response);
+  return normalizeDashboardData(body as unknown as NewOrderDashboardData);
 }

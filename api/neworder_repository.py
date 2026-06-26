@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from psycopg2.extras import Json
 
@@ -362,6 +363,97 @@ def get_neworder_config_status() -> dict[str, bool]:
     }
 
 
+def load_branch_map(cur: Any) -> dict[str, UUID]:
+    cur.execute(
+        "select id, neworder_id from no_branches where is_active = true and neworder_id <> ''"
+    )
+    return {str(row["neworder_id"]): UUID(str(row["id"])) for row in cur.fetchall()}
+
+
+def load_category_map(cur: Any) -> dict[str, UUID]:
+    cur.execute(
+        "select id, neworder_id from no_categories where is_active = true and neworder_id <> ''"
+    )
+    return {str(row["neworder_id"]): UUID(str(row["id"])) for row in cur.fetchall()}
+
+
+def load_supplier_map(cur: Any) -> dict[str, UUID]:
+    cur.execute(
+        "select id, neworder_id from no_suppliers where is_active = true and neworder_id <> ''"
+    )
+    return {str(row["neworder_id"]): UUID(str(row["id"])) for row in cur.fetchall()}
+
+
+def load_customer_map(cur: Any) -> dict[str, UUID]:
+    cur.execute(
+        "select id, neworder_id from no_customers where is_active = true and neworder_id <> ''"
+    )
+    return {str(row["neworder_id"]): UUID(str(row["id"])) for row in cur.fetchall()}
+
+
+def count_documents_without_line_items(cur: Any, *, hours: int | None = None) -> int:
+    since_clause, params = _documents_since_clause(hours)
+    cur.execute(
+        f"""
+        select count(*) as total
+        from no_documents d
+        where not exists (
+          select 1 from no_document_line_items li where li.document_id = d.id
+        )
+        {since_clause}
+        """,
+        params,
+    )
+    row = cur.fetchone()
+    return int(row["total"]) if row else 0
+
+
+def list_documents_without_line_items(
+    cur: Any,
+    *,
+    limit: int,
+    hours: int | None = None,
+) -> list[dict[str, Any]]:
+    since_clause, params = _documents_since_clause(hours)
+    cur.execute(
+        f"""
+        select d.id, d.neworder_id
+        from no_documents d
+        where not exists (
+          select 1 from no_document_line_items li where li.document_id = d.id
+        )
+        {since_clause}
+        order by d.create_date desc nulls last, d.synced_at desc
+        limit %s
+        """,
+        (*params, max(1, limit)),
+    )
+    return [dict(row) for row in cur.fetchall()]
+
+
+def _documents_since_clause(hours: int | None) -> tuple[str, tuple[Any, ...]]:
+    if hours is None:
+        return "", ()
+    hours = max(1, min(int(hours), 24 * 366))
+    return (
+        "and d.create_date >= (now() at time zone 'utc' - make_interval(hours => %s))",
+        (hours,),
+    )
+
+
+def patch_sync_run_details(run_id: UUID, patch: dict[str, Any]) -> None:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                update no_sync_runs
+                set details = details || %s::jsonb
+                where id = %s::uuid
+                """,
+                (Json(patch), str(run_id)),
+            )
+
+
 def upsert_branch(cur: Any, row: dict[str, Any]) -> UUID:
     neworder_id = str(row.get("branchId") or row.get("id") or "").strip()
     if not neworder_id:
@@ -549,6 +641,96 @@ def upsert_customer(cur: Any, row: dict[str, Any]) -> UUID:
     return UUID(str(cur.fetchone()["id"]))
 
 
+def _customer_neworder_id_from_document(row: dict[str, Any]) -> str | None:
+    customer = row.get("customer")
+    if isinstance(customer, dict):
+        customer_id = customer.get("id")
+        return str(customer_id) if customer_id is not None else None
+    if customer is not None:
+        return str(customer)
+    return None
+
+
+def upsert_documents_batch(cur: Any, rows: list[dict[str, Any]]) -> int:
+    """Upsert many documents in one transaction (maps loaded once per page)."""
+    if not rows:
+        return 0
+
+    branch_map = load_branch_map(cur)
+    customer_map = load_customer_map(cur)
+    count = 0
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        neworder_id = str(row.get("id") or "").strip()
+        if not neworder_id:
+            continue
+
+        paid = row.get("paidValues") or {}
+        if not isinstance(paid, dict):
+            paid = {}
+
+        branch_key = str(row.get("branchId") or "")
+        branch_uuid = branch_map.get(branch_key)
+
+        customer_key = _customer_neworder_id_from_document(row)
+        customer_uuid = customer_map.get(customer_key) if customer_key else None
+
+        cur.execute(
+            """
+            insert into no_documents (
+              neworder_id, document_number, document_type, bill_number, create_date,
+              employee_name, branch_id, customer_id, total_bill,
+              paid_cash, paid_credit_card, paid_checks, paid_bank_transfer, paid_akafa,
+              raw_paid_values, synced_at
+            ) values (
+              %s, %s, %s, %s, %s,
+              %s, %s::uuid, %s::uuid, %s,
+              %s, %s, %s, %s, %s,
+              %s, now()
+            )
+            on conflict (neworder_id) do update set
+              document_number = excluded.document_number,
+              document_type = excluded.document_type,
+              bill_number = excluded.bill_number,
+              create_date = excluded.create_date,
+              employee_name = excluded.employee_name,
+              branch_id = excluded.branch_id,
+              customer_id = excluded.customer_id,
+              total_bill = excluded.total_bill,
+              paid_cash = excluded.paid_cash,
+              paid_credit_card = excluded.paid_credit_card,
+              paid_checks = excluded.paid_checks,
+              paid_bank_transfer = excluded.paid_bank_transfer,
+              paid_akafa = excluded.paid_akafa,
+              raw_paid_values = excluded.raw_paid_values,
+              synced_at = now(),
+              updated_at = now()
+            """,
+            (
+                neworder_id,
+                row.get("documentNumber"),
+                row.get("documentType"),
+                row.get("billNumber"),
+                _parse_datetime(row.get("createDate")),
+                row.get("employee"),
+                str(branch_uuid) if branch_uuid else None,
+                str(customer_uuid) if customer_uuid else None,
+                _num(row.get("totalBill")) or 0,
+                _num(paid.get("cash")) or 0,
+                _num(paid.get("creditCard")) or 0,
+                _num(paid.get("checks")) or 0,
+                _num(paid.get("bankTransfer")) or 0,
+                _num(paid.get("akafa")) or 0,
+                Json(paid),
+            ),
+        )
+        count += 1
+
+    return count
+
+
 def upsert_document(cur: Any, row: dict[str, Any]) -> UUID:
     neworder_id = str(row.get("id") or "").strip()
     if not neworder_id:
@@ -558,12 +740,7 @@ def upsert_document(cur: Any, row: dict[str, Any]) -> UUID:
     if not isinstance(paid, dict):
         paid = {}
 
-    customer = row.get("customer")
-    customer_neworder_id = None
-    if isinstance(customer, dict):
-        customer_neworder_id = customer.get("id")
-    elif customer is not None:
-        customer_neworder_id = customer
+    customer_neworder_id = _customer_neworder_id_from_document(row)
 
     branch_uuid = lookup_branch_uuid(cur, row.get("branchId"))
     customer_uuid = lookup_customer_uuid(cur, customer_neworder_id)
@@ -779,6 +956,9 @@ def _parse_time(value: Any) -> time | None:
     return None
 
 
+STORE_TZ = ZoneInfo("Asia/Jerusalem")
+
+
 def _parse_datetime(value: Any) -> datetime | None:
     if not value:
         return None
@@ -791,8 +971,14 @@ def _parse_datetime(value: Any) -> datetime | None:
         "%d/%m/%Y",
     ):
         try:
-            return datetime.strptime(text[:19] if "T" in text else text, fmt)
+            parsed = datetime.strptime(text[:19] if "T" in text else text, fmt)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=STORE_TZ)
+            return parsed.astimezone(timezone.utc)
         except ValueError:
             continue
     parsed_date = _parse_date(text)
-    return datetime.combine(parsed_date, datetime.min.time()) if parsed_date else None
+    if not parsed_date:
+        return None
+    local_dt = datetime.combine(parsed_date, datetime.min.time(), tzinfo=STORE_TZ)
+    return local_dt.astimezone(timezone.utc)

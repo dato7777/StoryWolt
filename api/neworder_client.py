@@ -16,6 +16,10 @@ class NewOrderApiError(Exception):
         self.status = status
 
 
+class ApiBudgetExhausted(NewOrderApiError):
+    """Raised when the per-request API call budget is used up (partial sync)."""
+
+
 class NewOrderClient:
     def __init__(
         self,
@@ -37,8 +41,8 @@ class NewOrderClient:
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         if self.api_calls >= self.max_calls:
-            raise NewOrderApiError(
-                f"Stopped after {self.api_calls} API calls (limit {self.max_calls})"
+            raise ApiBudgetExhausted(
+                f"API budget exhausted after {self.api_calls} calls (limit {self.max_calls})"
             )
 
         query = urllib.parse.urlencode(

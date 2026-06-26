@@ -7,6 +7,7 @@ import os
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from uuid import UUID
 
 from auth_utils import (
     create_session_token,
@@ -25,7 +26,8 @@ from db_repository import (
     save_report_timeline,
 )
 from analytics_service import get_overall_analytics, get_period_analytics, parse_limit
-from neworder_sync_service import get_sync_status, run_neworder_sync
+from neworder_sync_service import get_sync_status, run_neworder_sync, run_neworder_sync_step
+from neworder_dashboard_repository import fetch_dashboard_data
 from supabase_client import is_db_configured
 
 CORS_HEADERS = (
@@ -311,6 +313,34 @@ def handle_neworder_status_get(handler: BaseHTTPRequestHandler) -> None:
         send_json(handler, 500, {"error": f"Failed to load NewOrder status: {exc}"})
 
 
+def handle_neworder_dashboard_get(handler: BaseHTTPRequestHandler) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    params = _query_params(handler)
+    period = params.get("period", "today").strip().lower()
+    hours_raw = params.get("hours")
+
+    try:
+        if hours_raw is not None and hours_raw != "":
+            hours = int(hours_raw)
+            payload = fetch_dashboard_data(hours=hours)
+        else:
+            if period not in {"today", "yesterday", "week"}:
+                send_json(handler, 400, {"error": "period must be today, yesterday, or week."})
+                return
+            payload = fetch_dashboard_data(period=period)
+    except (TypeError, ValueError):
+        send_json(handler, 400, {"error": "hours must be an integer when provided."})
+        return
+
+    try:
+        send_json(handler, 200, payload)
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Failed to load NewOrder dashboard: {exc}"})
+
+
 def handle_neworder_sync_post(handler: BaseHTTPRequestHandler) -> None:
     if not is_request_authenticated(handler.headers.get("Authorization")):
         send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
@@ -325,15 +355,52 @@ def handle_neworder_sync_post(handler: BaseHTTPRequestHandler) -> None:
         return
 
     mode = str(body.get("mode", "full")).strip().lower()
-    days_raw = body.get("days", 30)
+    step = str(body.get("step", "")).strip().lower()
+    hours_raw = body.get("hours", 24)
+    run_id_raw = str(body.get("run_id", "")).strip()
+    product_page_raw = body.get("product_page_start", 1)
+    document_task_raw = body.get("document_task_offset", 0)
+    finalize = bool(body.get("finalize", False))
     try:
-        days = int(days_raw)
+        hours = int(hours_raw)
     except (TypeError, ValueError):
-        send_json(handler, 400, {"error": "days must be an integer."})
+        send_json(handler, 400, {"error": "hours must be an integer."})
         return
 
     try:
-        result = run_neworder_sync(mode=mode, days=days)
+        product_page_start = int(product_page_raw)
+    except (TypeError, ValueError):
+        send_json(handler, 400, {"error": "product_page_start must be an integer."})
+        return
+
+    try:
+        document_task_offset = int(document_task_raw)
+    except (TypeError, ValueError):
+        send_json(handler, 400, {"error": "document_task_offset must be an integer."})
+        return
+
+    run_id = run_id_raw or None
+
+    parsed_run_id: UUID | None = None
+    if run_id:
+        try:
+            parsed_run_id = UUID(run_id)
+        except ValueError:
+            send_json(handler, 400, {"error": "run_id must be a valid UUID."})
+            return
+
+    try:
+        if step:
+            result = run_neworder_sync_step(
+                step,
+                hours=hours,
+                run_id=parsed_run_id,
+                product_page_start=product_page_start,
+                document_task_offset=document_task_offset,
+                finalize=finalize,
+            )
+        else:
+            result = run_neworder_sync(mode=mode, hours=hours)
         status_code = 200 if result.get("ok") else 207
         send_json(handler, status_code, result)
     except ValueError as exc:
