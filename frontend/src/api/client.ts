@@ -185,3 +185,68 @@ export async function fetchOverallAnalytics(
   const body = await parseApiResponse(response);
   return body as unknown as OverallAnalyticsResponse;
 }
+
+export interface NewOrderLastSync {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  status: "running" | "success" | "partial" | "failed";
+  products_upserted: number;
+  documents_upserted: number;
+  line_items_upserted: number;
+  error_message: string | null;
+}
+
+export interface NewOrderSyncStatus {
+  database_configured: boolean;
+  neworder_token_configured: boolean;
+  last_sync: NewOrderLastSync | null;
+}
+
+export interface NewOrderSyncResult extends NewOrderSyncStatus {
+  ok: boolean;
+  status: string;
+  run_id: string;
+  mode: string;
+  api_calls: number;
+  branches: number;
+  categories: number;
+  suppliers: number;
+  products_upserted: number;
+  stock_rows: number;
+  customers: number;
+  documents_upserted: number;
+  line_items_upserted: number;
+  employees: number;
+  attendance_rows: number;
+  warnings: string[];
+}
+
+/** NewOrder sync configuration and last run metadata. */
+export async function fetchNewOrderStatus(): Promise<NewOrderSyncStatus> {
+  const response = await fetch(`${API_BASE}/api/neworder/status`, {
+    headers: authHeaders(),
+  });
+  const body = await parseApiResponse(response);
+  return body as unknown as NewOrderSyncStatus;
+}
+
+/** Trigger a NewOrder → Supabase sync (catalog, sales, or full). */
+export async function syncNewOrder(options?: {
+  mode?: "catalog" | "sales" | "full";
+  days?: number;
+}): Promise<NewOrderSyncResult> {
+  const response = await fetch(`${API_BASE}/api/neworder/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({
+      mode: options?.mode ?? "full",
+      days: options?.days ?? 30,
+    }),
+  });
+  const body = await parseApiResponse(response);
+  return body as unknown as NewOrderSyncResult;
+}

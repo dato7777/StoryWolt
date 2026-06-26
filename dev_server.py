@@ -55,6 +55,8 @@ class DevHandler(BaseHTTPRequestHandler):
             handlers.handle_analytics_period_get(self)
         elif path == "/api/analytics/overall":
             handlers.handle_analytics_overall_get(self)
+        elif path == "/api/neworder/status":
+            handlers.handle_neworder_status_get(self)
         elif path.startswith("/api/timelines/"):
             timeline_id = path.removeprefix("/api/timelines/").strip("/")
             if timeline_id:
@@ -70,6 +72,8 @@ class DevHandler(BaseHTTPRequestHandler):
             handlers.handle_login_post(self)
         elif path == "/api/calculate":
             handlers.handle_calculate_post(self)
+        elif path == "/api/neworder/sync":
+            handlers.handle_neworder_sync_post(self)
         else:
             handlers.send_json(self, 404, {"error": f"Not found: {path}"})
 

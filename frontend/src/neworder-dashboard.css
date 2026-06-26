@@ -294,6 +294,12 @@
 .no-sync-meta {
   font-size: 0.75rem;
   color: var(--no-muted);
+  margin-bottom: 0.5rem;
+}
+
+.no-sync-error {
+  font-size: 0.75rem;
+  color: #b42318;
   margin-bottom: 1.25rem;
 }
 

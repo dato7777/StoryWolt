@@ -25,6 +25,7 @@ from db_repository import (
     save_report_timeline,
 )
 from analytics_service import get_overall_analytics, get_period_analytics, parse_limit
+from neworder_sync_service import get_sync_status, run_neworder_sync
 from supabase_client import is_db_configured
 
 CORS_HEADERS = (
@@ -297,3 +298,45 @@ def handle_timeline_delete(handler: BaseHTTPRequestHandler, timeline_id: str) ->
         send_json(handler, 404, {"error": str(exc)})
     except Exception as exc:
         send_json(handler, 500, {"error": f"Failed to delete timeline: {exc}"})
+
+
+def handle_neworder_status_get(handler: BaseHTTPRequestHandler) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    try:
+        send_json(handler, 200, get_sync_status())
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Failed to load NewOrder status: {exc}"})
+
+
+def handle_neworder_sync_post(handler: BaseHTTPRequestHandler) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    try:
+        content_length = int(handler.headers.get("Content-Length", "0"))
+        raw_body = handler.rfile.read(content_length) if content_length else b"{}"
+        body = json.loads(raw_body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        send_json(handler, 400, {"error": "Request body must be valid JSON."})
+        return
+
+    mode = str(body.get("mode", "full")).strip().lower()
+    days_raw = body.get("days", 30)
+    try:
+        days = int(days_raw)
+    except (TypeError, ValueError):
+        send_json(handler, 400, {"error": "days must be an integer."})
+        return
+
+    try:
+        result = run_neworder_sync(mode=mode, days=days)
+        status_code = 200 if result.get("ok") else 207
+        send_json(handler, status_code, result)
+    except ValueError as exc:
+        send_json(handler, 400, {"error": str(exc)})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"NewOrder sync failed: {exc}"})

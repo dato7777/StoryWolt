@@ -52,7 +52,8 @@ wolt-net-income/
 │   └── offers_commission.xlsx
 ├── frontend/               # React + Vite + Tailwind dashboard
 ├── supabase/
-│   └── schema.sql          # Future PostgreSQL tables
+│   ├── schema.sql          # Wolt commission + report timelines
+│   └── neworder_schema.sql # NewOrder sync tables (no_*)
 ├── dev_server.py           # Local API for development
 └── vercel.json             # Serverless deployment config
 ```
@@ -77,6 +78,8 @@ wolt-net-income/
 pip install -r requirements.txt
 python scripts/seed_commission_offers.py
 ```
+
+5. **NewOrder dashboard:** run `supabase/neworder_schema.sql` in the same Supabase project (separate `no_*` tables; Wolt tables unchanged).
 
 After setup: each **Calculate** saves a timeline; **Saved reports** buttons on the dashboard reload any period instantly.
 

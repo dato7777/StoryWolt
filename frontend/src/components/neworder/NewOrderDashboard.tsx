@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChoosePlatformButton } from "../ChoosePlatformButton";
+import {
+  fetchNewOrderStatus,
+  syncNewOrder,
+  type NewOrderLastSync,
+} from "../../api/client";
 import {
   MOCK_BEST_NET_REVENUE,
   MOCK_EMPLOYEES,
   MOCK_KPI,
-  MOCK_LAST_SYNC,
   MOCK_ORDERS,
   MOCK_PERIOD_LABEL,
   MOCK_PRODUCTS,
@@ -17,6 +21,29 @@ import {
 } from "../../data/neworderMockData";
 
 const NEWORDER_LOGO = "/logos/neworder.png";
+
+function formatLastSync(lastSync: NewOrderLastSync | null): string {
+  if (!lastSync?.finished_at && !lastSync?.started_at) {
+    return "Never";
+  }
+  const stamp = lastSync.finished_at ?? lastSync.started_at;
+  const date = new Date(stamp);
+  if (Number.isNaN(date.getTime())) {
+    return stamp;
+  }
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function syncStatusLabel(lastSync: NewOrderLastSync | null): string {
+  if (!lastSync) return "No sync yet";
+  if (lastSync.status === "running") return "Sync in progress…";
+  if (lastSync.status === "failed") return "Last sync failed";
+  if (lastSync.status === "partial") return "Last sync partial";
+  return "Last sync successful";
+}
 
 interface NewOrderDashboardProps {
   adminName: string;
@@ -366,11 +393,42 @@ const VIEW_META: Record<NewOrderView, { title: string; subtitle: string }> = {
 export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardProps) {
   const [view, setView] = useState<NewOrderView>("dashboard");
   const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<NewOrderLastSync | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [configReady, setConfigReady] = useState(true);
   const meta = VIEW_META[view];
 
-  function handleSync() {
+  const refreshStatus = useCallback(async () => {
+    try {
+      const status = await fetchNewOrderStatus();
+      setLastSync(status.last_sync);
+      setConfigReady(status.database_configured && status.neworder_token_configured);
+      setSyncError(null);
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : "Failed to load sync status.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  async function handleSync() {
     setSyncing(true);
-    window.setTimeout(() => setSyncing(false), 1500);
+    setSyncError(null);
+    try {
+      const result = await syncNewOrder({ mode: "full", days: 30 });
+      setLastSync(result.last_sync);
+      if (result.warnings?.length) {
+        setSyncError(result.warnings.join(" · "));
+      } else if (!result.ok) {
+        setSyncError("Sync finished with issues. Check server logs for details.");
+      }
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : "Sync failed.");
+    } finally {
+      setSyncing(false);
+    }
   }
 
   return (
@@ -428,12 +486,16 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12M12 15l4-4M12 15l-4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
               Export
             </button>
-            <button type="button" className="no-btn no-btn--dark" onClick={handleSync} disabled={syncing}>
+            <button type="button" className="no-btn no-btn--dark" onClick={handleSync} disabled={syncing || !configReady}>
               {syncing ? "Syncing…" : "Sync NewOrder"}
             </button>
           </div>
         </div>
-        <p className="no-sync-meta">Last synced: {MOCK_LAST_SYNC} · Mock data preview</p>
+        <p className="no-sync-meta">
+          {syncStatusLabel(lastSync)} · Last synced: {formatLastSync(lastSync)}
+          {!configReady ? " · Configure DATABASE_URL and NEWORDER_API_TOKEN on the server" : ""}
+        </p>
+        {syncError && <p className="no-sync-error">{syncError}</p>}
         {renderView(view)}
       </main>
     </div>
