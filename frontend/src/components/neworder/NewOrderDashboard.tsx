@@ -733,32 +733,71 @@ function formatEmployeeHours(hours: number | undefined | null): string {
 
 function EmployeesView({ data }: { data: NewOrderDashboardData }) {
   const hoursLabel = `Hours (${data.period_label})`;
+
+  if (data.employees.length === 0) {
+    return (
+      <article className="no-metric-card no-metric-card--full no-employees-panel">
+        <div className="no-metric-head"><span>Employee Performance</span></div>
+        <p className="no-muted-sm no-employees-empty">
+          No employee sales in {data.period_label.toLowerCase()}.
+        </p>
+      </article>
+    );
+  }
+
   return (
-    <article className="no-metric-card no-metric-card--full">
+    <article className="no-metric-card no-metric-card--full no-employees-panel">
       <div className="no-metric-head"><span>Employee Performance</span></div>
-      <table className="no-table">
-        <thead>
-          <tr><th>Employee</th><th>Sales</th><th>Orders</th><th>{hoursLabel}</th><th>Sales / Hour</th></tr>
-        </thead>
-        <tbody>
-          {data.employees.length === 0 ? (
-            <tr><td colSpan={5}>No employee sales in {data.period_label.toLowerCase()}.</td></tr>
-          ) : (
-            data.employees.map((e) => {
+
+      <div className="no-table-scroll no-employees-table-wrap">
+        <table className="no-table no-table--employees">
+          <thead>
+            <tr><th>Employee</th><th>Sales</th><th>Orders</th><th>{hoursLabel}</th><th>Sales / Hour</th></tr>
+          </thead>
+          <tbody>
+            {data.employees.map((e) => {
               const hours = Number(e.hours_in_period ?? 0);
               return (
-              <tr key={e.id}>
-                <td>{e.name}</td>
-                <td>{formatIls(e.sales_total)}</td>
-                <td>{e.order_count}</td>
-                <td>{formatEmployeeHours(hours)}</td>
-                <td>{formatIls(hours > 0 ? Math.round(e.sales_total / hours) : 0)}</td>
-              </tr>
+                <tr key={e.id}>
+                  <td>{e.name}</td>
+                  <td>{formatIls(e.sales_total)}</td>
+                  <td>{e.order_count}</td>
+                  <td>{formatEmployeeHours(hours)}</td>
+                  <td>{formatIls(hours > 0 ? Math.round(e.sales_total / hours) : 0)}</td>
+                </tr>
               );
-            })
-          )}
-        </tbody>
-      </table>
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="no-employee-cards" aria-label="Employee performance">
+        {data.employees.map((e) => {
+          const hours = Number(e.hours_in_period ?? 0);
+          return (
+            <article key={e.id} className="no-employee-card">
+              <div className="no-employee-card__head">
+                <strong>{e.name}</strong>
+                <span>{formatIls(e.sales_total)}</span>
+              </div>
+              <dl className="no-employee-card__stats">
+                <div>
+                  <dt>Orders</dt>
+                  <dd>{e.order_count}</dd>
+                </div>
+                <div>
+                  <dt>{hoursLabel}</dt>
+                  <dd>{formatEmployeeHours(hours)}</dd>
+                </div>
+                <div>
+                  <dt>Sales / Hour</dt>
+                  <dd>{formatIls(hours > 0 ? Math.round(e.sales_total / hours) : 0)}</dd>
+                </div>
+              </dl>
+            </article>
+          );
+        })}
+      </div>
     </article>
   );
 }
