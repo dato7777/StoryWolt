@@ -11,7 +11,7 @@
   width: 100%;
   max-width: 100vw;
   min-width: 0;
-  overflow-x: clip;
+  overflow-x: hidden;
   background: var(--no-bg);
   color: var(--no-ink);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
@@ -25,6 +25,7 @@
   padding: 1rem 1.75rem;
   background: var(--no-card);
   border-bottom: 1px solid #eceef2;
+  min-width: 0;
 }
 
 .no-header-start {
@@ -116,6 +117,7 @@
   gap: 0.35rem;
   min-width: 0;
   flex-wrap: wrap;
+  row-gap: 0.35rem;
 }
 
 .no-header-nav button {
@@ -403,6 +405,7 @@
   grid-template-columns: 280px 1fr 300px;
   grid-template-rows: auto auto;
   gap: 1rem;
+  min-width: 0;
 }
 
 .no-dash-col--sales {
@@ -506,6 +509,20 @@
   line-height: 1.1;
 }
 
+.no-metric-count {
+  display: block;
+  font-family: "Sora", sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.no-metric-card--compact .no-metric-count {
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
 .no-metric-dark {
   color: var(--no-navy) !important;
 }
@@ -555,6 +572,8 @@
   display: flex;
   gap: 0.25rem;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
 }
 
 .no-time-tabs button,
@@ -1049,25 +1068,33 @@
 
 @media (max-width: 1100px) {
   .no-dash-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
   }
 
-  .no-metric-card--wide,
+  .no-dash-col--sales,
   .no-dash-col--units,
   .no-metric-card--gauge,
   .no-metric-card--chart,
   .no-metric-card--rank {
-    grid-column: auto;
+    grid-column: 1 / -1;
     grid-row: auto;
+    min-width: 0;
   }
 
   .no-dash-col--sales {
-    grid-column: 1 / -1;
-    flex-direction: row;
+    flex-direction: column;
   }
 
   .no-dash-col--sales .no-metric-card {
-    flex: 1;
+    flex: none;
+    width: 100%;
+  }
+
+  .no-dash-col--units {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
   }
 
   .no-page-bar {
@@ -1080,9 +1107,49 @@
   }
 }
 
+@media (max-width: 980px) {
+  .no-header {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    padding: 0.85rem 1.25rem;
+  }
+
+  .no-header-start {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .no-header-user {
+    grid-column: 2;
+    grid-row: 1;
+    margin-inline-start: 0;
+  }
+
+  .no-header-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-top: 0.2rem;
+  }
+
+  .no-header-nav button {
+    flex: 0 1 auto;
+  }
+}
+
 @media (max-width: 900px) {
   .no-header {
     gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+  }
+
+  .no-header-nav button {
+    font-size: 0.8rem;
+    padding: 0.45rem 0.75rem;
   }
 
   .no-search-field {
@@ -1093,6 +1160,11 @@
 
   .no-page-toolbar {
     width: 100%;
+  }
+
+  .no-time-tabs {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .no-stock-tabs {
@@ -1108,51 +1180,11 @@
 
 @media (max-width: 768px) {
   .no-header {
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
     padding: 0.85rem 1rem;
-  }
-
-  .no-header-start {
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 0;
-  }
-
-  .no-header-user {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .no-header-nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-start;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 0.25rem;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .no-header-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .no-header-nav button {
-    flex-shrink: 0;
   }
 
   .no-user-chip div {
     display: none;
-  }
-
-  .no-dash-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .no-dash-col--sales {
-    flex-direction: column;
   }
 
   .no-main {
@@ -1172,6 +1204,16 @@
     justify-content: center;
   }
 
+  .no-page-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .no-time-tabs {
+    justify-content: center;
+  }
+
   .no-metric-card strong {
     font-size: 1.65rem;
   }
@@ -1186,14 +1228,20 @@
 }
 
 @media (max-width: 520px) {
+  .no-header-nav button {
+    font-size: 0.72rem;
+    padding: 0.4rem 0.6rem;
+  }
+
   .no-header-logo {
     max-width: 5.5rem;
     height: 2rem;
   }
 
-  .no-header-nav button {
-    font-size: 0.78rem;
-    padding: 0.45rem 0.7rem;
+  .no-time-tabs button,
+  .no-chart-tabs button {
+    font-size: 0.64rem;
+    padding: 0.25rem 0.5rem;
   }
 
   .no-stock-tabs {
@@ -1223,5 +1271,7 @@
 
   .no-search-field {
     height: 2.35rem;
+    min-width: 0;
+    width: 100%;
   }
 }

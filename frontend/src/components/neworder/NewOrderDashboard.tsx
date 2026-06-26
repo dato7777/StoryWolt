@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChoosePlatformButton } from "../ChoosePlatformButton";
 import {
   fetchNewOrderDashboard,
@@ -13,11 +13,17 @@ import {
   startNewOrderSync,
   subscribeNewOrderSync,
 } from "../../api/neworderSyncManager";
+import { useCountUp } from "../../hooks/useCountUp";
 import { formatIls, NAV_ITEMS, type NewOrderView } from "../../data/neworderMockData";
+import { CountUpCurrency } from "../CountUpCurrency";
+import { CountUpNumber } from "./CountUpNumber";
 import { StockView } from "./StockView";
 
 const NEWORDER_LOGO = "/logos/neworder.png";
 const SYNC_HOURS = 24;
+const KPI_COUNT_DURATION_MS = 900;
+const KPI_COUNT_PAUSE_MS = 140;
+const TACHOMETER_DURATION_MS = 1200;
 
 const PERIOD_TABS: { id: NewOrderDashboardPeriod; label: string }[] = [
   { id: "today", label: "Today" },
@@ -208,9 +214,11 @@ function DashboardSearchField({
 function CustomerTachometer({
   uniqueCustomers,
   volumePct,
+  animateGauge,
 }: {
   uniqueCustomers: number;
   volumePct: number;
+  animateGauge: boolean;
 }) {
   const segments = 32;
   const cx = 100;
@@ -219,7 +227,15 @@ function CustomerTachometer({
   const outerR = 78;
   const startAngle = -180;
   const endAngle = 0;
-  const filledCount = Math.round(segments * (Math.min(100, volumePct) / 100));
+
+  const animatedPct = useCountUp(animateGauge ? volumePct : 0, TACHOMETER_DURATION_MS, {
+    enabled: animateGauge,
+  });
+  const animatedCustomers = useCountUp(animateGauge ? uniqueCustomers : 0, TACHOMETER_DURATION_MS, {
+    enabled: animateGauge,
+  });
+
+  const filledCount = Math.round(segments * (Math.min(100, animatedPct) / 100));
 
   return (
     <div className="no-tachometer">
@@ -243,20 +259,158 @@ function CustomerTachometer({
               stroke={isActive ? "#c1ff4d" : "#e8eaef"}
               strokeWidth="5.5"
               strokeLinecap="round"
+              style={{ transition: "stroke 0.12s ease" }}
             />
           );
         })}
       </svg>
       <div className="no-tachometer-center">
-        <strong>{uniqueCustomers}</strong>
+        <strong>{Math.round(animatedCustomers).toLocaleString()}</strong>
         <span>Unique Customers</span>
       </div>
     </div>
   );
 }
 
+function SequentialCurrency({
+  index,
+  activeIndex,
+  value,
+  className,
+  onComplete,
+}: {
+  index: number;
+  activeIndex: number;
+  value: number;
+  className?: string;
+  onComplete?: () => void;
+}) {
+  const isCurrent = activeIndex === index;
+  const isPast = activeIndex > index;
+
+  useEffect(() => {
+    if (!isCurrent) return;
+    if (value === 0) {
+      const timer = window.setTimeout(() => onComplete?.(), 80);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [isCurrent, onComplete, value]);
+
+  if (isPast) {
+    return <strong className={className}>{formatIls(value)}</strong>;
+  }
+
+  if (!isCurrent) {
+    return <strong className={`no-metric-count ${className ?? ""}`}>{formatIls(0)}</strong>;
+  }
+
+  return (
+    <strong className={`no-metric-count ${className ?? ""}`}>
+      <CountUpCurrency
+        value={value}
+        durationMs={KPI_COUNT_DURATION_MS}
+        animate
+        onComplete={onComplete}
+      />
+    </strong>
+  );
+}
+
+function SequentialNumber({
+  index,
+  activeIndex,
+  value,
+  className,
+  onComplete,
+}: {
+  index: number;
+  activeIndex: number;
+  value: number;
+  className?: string;
+  onComplete?: () => void;
+}) {
+  const isCurrent = activeIndex === index;
+  const isPast = activeIndex > index;
+
+  useEffect(() => {
+    if (!isCurrent) return;
+    if (value === 0) {
+      const timer = window.setTimeout(() => onComplete?.(), 80);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [isCurrent, onComplete, value]);
+
+  if (isPast) {
+    return <strong className={className}>{value.toLocaleString()}</strong>;
+  }
+
+  if (!isCurrent) {
+    return <strong className={`no-metric-count ${className ?? ""}`}>0</strong>;
+  }
+
+  return (
+    <strong className={`no-metric-count ${className ?? ""}`}>
+      <CountUpNumber
+        value={value}
+        durationMs={KPI_COUNT_DURATION_MS}
+        animate
+        onComplete={onComplete}
+      />
+    </strong>
+  );
+}
+
 function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
   const { kpi, daily_sales, top_products, period_label, chart_title } = data;
+  const [activeMetricIndex, setActiveMetricIndex] = useState(-1);
+  const [gaugeAnimating, setGaugeAnimating] = useState(false);
+
+  const cascadeKey = useMemo(
+    () =>
+      [
+        data.period,
+        kpi.total_sales,
+        kpi.net_revenue,
+        kpi.total_cost,
+        kpi.units_sold,
+        kpi.order_count,
+        kpi.unique_customer_count,
+        kpi.customer_volume_pct,
+      ].join("|"),
+    [
+      data.period,
+      kpi.total_sales,
+      kpi.net_revenue,
+      kpi.total_cost,
+      kpi.units_sold,
+      kpi.order_count,
+      kpi.unique_customer_count,
+      kpi.customer_volume_pct,
+    ],
+  );
+
+  useEffect(() => {
+    setActiveMetricIndex(-1);
+    setGaugeAnimating(false);
+    const timer = window.setTimeout(() => setActiveMetricIndex(0), 160);
+    return () => window.clearTimeout(timer);
+  }, [cascadeKey]);
+
+  const handleMetricComplete = useCallback((index: number) => {
+    window.setTimeout(() => {
+      setActiveMetricIndex((current) => {
+        if (current !== index) return current;
+        if (index < 4) return index + 1;
+        return current;
+      });
+      if (index === 4) {
+        setGaugeAnimating(true);
+      }
+    }, KPI_COUNT_PAUSE_MS);
+  }, []);
+
   const lastActiveIndex = daily_sales.reduce(
     (best, point, index) => (point.revenue > (daily_sales[best]?.revenue ?? -1) ? index : best),
     0,
@@ -273,7 +427,12 @@ function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
             <span>Total Sales</span>
             <button type="button" className="no-dots" aria-label="Options">···</button>
           </div>
-          <strong>{formatIls(kpi.total_sales)}</strong>
+          <SequentialCurrency
+            index={0}
+            activeIndex={activeMetricIndex}
+            value={kpi.total_sales}
+            onComplete={() => handleMetricComplete(0)}
+          />
           <span className="no-pill no-pill--up">{kpi.order_count} orders · incl. VAT</span>
         </article>
         <article className="no-metric-card no-metric-card--net">
@@ -281,7 +440,12 @@ function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
             <span>Net Revenue</span>
             <button type="button" className="no-dots" aria-label="Options">···</button>
           </div>
-          <strong>{formatIls(kpi.net_revenue)}</strong>
+          <SequentialCurrency
+            index={1}
+            activeIndex={activeMetricIndex}
+            value={kpi.net_revenue}
+            onComplete={() => handleMetricComplete(1)}
+          />
           <span className="no-pill no-pill--up">Sales − cost (incl. VAT) · {marginPct}% margin</span>
         </article>
         <article className="no-metric-card">
@@ -289,7 +453,13 @@ function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
             <span>Total Cost</span>
             <button type="button" className="no-dots" aria-label="Options">···</button>
           </div>
-          <strong className="no-metric-dark">{formatIls(kpi.total_cost)}</strong>
+          <SequentialCurrency
+            index={2}
+            activeIndex={activeMetricIndex}
+            value={kpi.total_cost}
+            className="no-metric-dark"
+            onComplete={() => handleMetricComplete(2)}
+          />
           <span className="no-pill no-pill--down">{period_label}</span>
         </article>
       </div>
@@ -299,7 +469,13 @@ function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
           <div className="no-metric-head">
             <span>Units Sold</span>
           </div>
-          <strong className="no-metric-dark">{kpi.units_sold.toLocaleString()}</strong>
+          <SequentialNumber
+            index={3}
+            activeIndex={activeMetricIndex}
+            value={kpi.units_sold}
+            className="no-metric-dark"
+            onComplete={() => handleMetricComplete(3)}
+          />
           <span className="no-pill no-pill--up no-pill--sm">{period_label}</span>
           <div className="no-progress-track no-progress-track--compact">
             <div
@@ -319,7 +495,13 @@ function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
           <div className="no-metric-head">
             <span>Purchases</span>
           </div>
-          <strong className="no-metric-dark">{kpi.order_count.toLocaleString()}</strong>
+          <SequentialNumber
+            index={4}
+            activeIndex={activeMetricIndex}
+            value={kpi.order_count}
+            className="no-metric-dark"
+            onComplete={() => handleMetricComplete(4)}
+          />
           <span className="no-pill no-pill--up no-pill--sm">sales in {period_label.toLowerCase()}</span>
           <div className="no-progress-track no-progress-track--compact">
             <div
@@ -342,6 +524,7 @@ function DashboardOverview({ data }: { data: NewOrderDashboardData }) {
         <CustomerTachometer
           uniqueCustomers={kpi.unique_customer_count}
           volumePct={kpi.customer_volume_pct}
+          animateGauge={gaugeAnimating}
         />
         <p className="no-gauge-note">
           {kpi.unique_customer_count} unique customers
