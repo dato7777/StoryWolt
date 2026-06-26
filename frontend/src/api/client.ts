@@ -456,6 +456,7 @@ export interface NewOrderDashboardKpi {
   orders_with_customer: number;
   customer_volume_pct: number;
   low_stock_count: number;
+  attention_needed_count?: number;
 }
 
 export interface NewOrderDashboardData {
@@ -494,7 +495,9 @@ export interface NewOrderDashboardData {
     cost: number;
     price: number;
     stock: number;
-    min_stock: number;
+    min_stock: number | null;
+    has_min_threshold?: boolean;
+    is_stock?: boolean;
     is_active: boolean;
   }[];
   products_total?: number;
@@ -511,6 +514,7 @@ export interface NewOrderDashboardData {
     sku: string;
     stock: number;
     min_stock: number;
+    has_min_threshold?: boolean;
   }[];
 }
 
@@ -535,6 +539,32 @@ function normalizeDashboardData(data: NewOrderDashboardData): NewOrderDashboardD
     products,
     products_total: data.products_total ?? products.length,
     employees: (data.employees ?? []).map((row) => normalizeDashboardEmployee(row)),
+    kpi: {
+      ...data.kpi,
+      attention_needed_count:
+        data.kpi?.attention_needed_count ?? data.kpi?.low_stock_count ?? 0,
+    },
+  };
+}
+
+/** Set or clear minimum stock alert threshold for a product (local config). */
+export async function updateProductMinStock(
+  productId: string,
+  minQuantity: number | null,
+): Promise<{ product_id: string; has_min_threshold: boolean; min_stock: number | null }> {
+  const response = await fetch(`${API_BASE}/api/neworder/products/${productId}/min-stock`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+    },
+    body: JSON.stringify({ min_quantity: minQuantity }),
+  });
+  const body = await parseApiResponse(response);
+  return body as {
+    product_id: string;
+    has_min_threshold: boolean;
+    min_stock: number | null;
   };
 }
 

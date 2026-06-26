@@ -14,6 +14,7 @@ import {
   subscribeNewOrderSync,
 } from "../../api/neworderSyncManager";
 import { formatIls, NAV_ITEMS, type NewOrderView } from "../../data/neworderMockData";
+import { StockView } from "./StockView";
 
 const NEWORDER_LOGO = "/logos/neworder.png";
 const SYNC_HOURS = 24;
@@ -87,11 +88,11 @@ function filterDashboardBySearch(
     case "stock":
       return {
         ...data,
-        low_stock: data.low_stock.filter(
-          (p) => matchesSearch(p.name, query) || matchesSearch(p.sku, query),
-        ),
         products: data.products.filter(
-          (p) => matchesSearch(p.name, query) || matchesSearch(p.sku, query),
+          (p) =>
+            matchesSearch(p.name, query)
+            || matchesSearch(p.sku, query)
+            || matchesSearch(p.category, query),
         ),
       };
     case "employees":
@@ -488,7 +489,7 @@ function ProductsView({ data }: { data: NewOrderDashboardData }) {
                   <td>{p.category}</td>
                   <td>{formatIls(p.cost)}</td>
                   <td>{formatIls(p.price)}</td>
-                  <td className={p.stock <= p.min_stock ? "no-warn" : ""}>{p.stock}</td>
+                  <td className={p.stock <= p.min_stock! && p.min_stock != null ? "no-warn" : ""}>{p.stock}</td>
                   <td><span className={`no-tag no-tag--${p.is_active ? "ok" : "off"}`}>{p.is_active ? "Active" : "Inactive"}</span></td>
                 </tr>
               ))
@@ -539,54 +540,6 @@ function OrdersView({ data }: { data: NewOrderDashboardData }) {
   );
 }
 
-function StockView({ data }: { data: NewOrderDashboardData }) {
-  const low = data.low_stock;
-  return (
-    <div className="no-table-grid">
-      <article className="no-metric-card no-metric-card--dark no-metric-card--full">
-        <span className="no-pill no-pill--down">Stock Alert</span>
-        <h3 className="no-alert-title">{low.length} products below minimum stock</h3>
-        {low.length === 0 ? (
-          <p className="no-muted-sm">All stocked products are above minimum levels.</p>
-        ) : (
-          <ul className="no-alert-list">
-            {low.map((p) => (
-              <li key={p.id}>{p.name} — {p.stock} in stock (min {p.min_stock})</li>
-            ))}
-          </ul>
-        )}
-      </article>
-      <article className="no-metric-card no-metric-card--full">
-        <div className="no-metric-head"><span>Stock by Product</span></div>
-        <table className="no-table">
-          <thead>
-            <tr><th>Product</th><th>SKU</th><th>Stock</th><th>Minimum</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {data.products.filter((p) => p.stock > 0 || p.min_stock > 0).map((p) => (
-              <tr key={p.id}>
-                <td>{p.name}</td>
-                <td className="no-mono">{p.sku}</td>
-                <td>{p.stock}</td>
-                <td>{p.min_stock}</td>
-                <td>
-                  {p.stock === 0 ? (
-                    <span className="no-tag no-tag--danger">Out</span>
-                  ) : p.stock <= p.min_stock ? (
-                    <span className="no-tag no-tag--pending">Low</span>
-                  ) : (
-                    <span className="no-tag no-tag--ok">OK</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </article>
-    </div>
-  );
-}
-
 function formatEmployeeHours(hours: number | undefined | null): string {
   const value = Number(hours ?? 0);
   if (!Number.isFinite(value) || value <= 0) {
@@ -627,9 +580,23 @@ function EmployeesView({ data }: { data: NewOrderDashboardData }) {
   );
 }
 
+function countAttentionNeeded(
+  products: NewOrderDashboardData["products"],
+): number {
+  return products.filter(
+    (p) =>
+      p.is_stock !== false
+      && p.has_min_threshold
+      && p.min_stock != null
+      && p.min_stock > 0
+      && p.stock <= p.min_stock,
+  ).length;
+}
+
 function renderView(
   view: NewOrderView,
   data: NewOrderDashboardData,
+  onMinStockUpdated: (productId: string, update: { has_min_threshold: boolean; min_stock: number | null }) => void,
 ) {
   switch (view) {
     case "dashboard":
@@ -637,7 +604,7 @@ function renderView(
     case "analytics": return <AnalyticsView data={data} />;
     case "products": return <ProductsView data={data} />;
     case "orders": return <OrdersView data={data} />;
-    case "stock": return <StockView data={data} />;
+    case "stock": return <StockView data={data} onMinStockUpdated={onMinStockUpdated} />;
     case "employees": return <EmployeesView data={data} />;
   }
 }
@@ -647,7 +614,7 @@ const VIEW_META: Record<NewOrderView, { title: string; subtitle: string }> = {
   analytics: { title: "Analytics", subtitle: "Best sellers and net revenue by period" },
   products: { title: "Products", subtitle: "Full synced catalog — SKU, cost, price and stock (not period-filtered)" },
   orders: { title: "Orders", subtitle: "All documents and invoices for the selected period" },
-  stock: { title: "Stock", subtitle: "Inventory levels and low-stock alerts" },
+  stock: { title: "Stock", subtitle: "Set minimums, track attention items, and monitor inventory" },
   employees: { title: "Employees", subtitle: "Sales performance and working hours" },
 };
 
@@ -669,6 +636,7 @@ const EMPTY_DASHBOARD: NewOrderDashboardData = {
     orders_with_customer: 0,
     customer_volume_pct: 0,
     low_stock_count: 0,
+    attention_needed_count: 0,
   },
   daily_sales: [],
   top_products: [],
@@ -694,10 +662,33 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
   const [searchQuery, setSearchQuery] = useState("");
   const fetchGenerationRef = useRef(0);
   const meta = VIEW_META[view];
-  const stockAlertCount = dashboard.kpi.low_stock_count;
+  const stockAlertCount = dashboard.kpi.attention_needed_count ?? dashboard.kpi.low_stock_count;
   const filteredDashboard = filterDashboardBySearch(dashboard, view, searchQuery);
   const syncing = syncUI.syncing;
   const syncProgress = syncUI.progress;
+
+  const handleMinStockUpdated = useCallback((
+    productId: string,
+    update: { has_min_threshold: boolean; min_stock: number | null },
+  ) => {
+    setDashboard((prev) => {
+      const products = prev.products.map((p) =>
+        p.id === productId
+          ? { ...p, ...update }
+          : p,
+      );
+      const attention = countAttentionNeeded(products);
+      return {
+        ...prev,
+        products,
+        kpi: {
+          ...prev.kpi,
+          attention_needed_count: attention,
+          low_stock_count: attention,
+        },
+      };
+    });
+  }, []);
 
   const loadDashboard = useCallback(async (activePeriod: NewOrderDashboardPeriod) => {
     const fetchId = ++fetchGenerationRef.current;
@@ -827,8 +818,13 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
               onClick={() => setView(item.id)}
             >
               {item.label}
-              {item.id === "stock" && stockAlertCount > 0 && (
-                <span className="no-nav-alert">{stockAlertCount}</span>
+              {item.id === "stock" && (
+                <span
+                  className={`no-nav-alert${stockAlertCount > 0 ? "" : " no-nav-alert--hidden"}`}
+                  aria-hidden={stockAlertCount <= 0}
+                >
+                  {stockAlertCount > 0 ? stockAlertCount : "0"}
+                </span>
               )}
             </button>
           ))}
@@ -837,7 +833,7 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
         <div className="no-header-user">
           <button type="button" className="no-icon-round" title="Notifications">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" /></svg>
-            {stockAlertCount > 0 && <span className="no-dot" />}
+            {stockAlertCount > 0 ? <span className="no-dot" /> : <span className="no-dot no-dot--hidden" aria-hidden />}
           </button>
           <div className="no-user-chip">
             <span className="no-user-avatar">{adminName.charAt(0).toUpperCase()}</span>
@@ -889,7 +885,7 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
         {dashboardLoading && (
           <p className="no-muted-sm">Updating {PERIOD_TABS.find((t) => t.id === period)?.label ?? "period"}…</p>
         )}
-        {renderView(view, filteredDashboard)}
+        {renderView(view, filteredDashboard, handleMinStockUpdated)}
       </main>
     </div>
   );

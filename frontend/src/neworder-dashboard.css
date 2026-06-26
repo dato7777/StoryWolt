@@ -8,6 +8,10 @@
   --no-muted: #8b8fa3;
   --no-ink: #1a1c3d;
   min-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: clip;
   background: var(--no-bg);
   color: var(--no-ink);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
@@ -149,6 +153,11 @@
   display: grid;
   place-items: center;
   padding: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.no-nav-alert--hidden {
+  visibility: hidden;
 }
 
 .no-header-user {
@@ -184,6 +193,11 @@
   height: 7px;
   border-radius: 999px;
   background: #ff6b6b;
+  flex-shrink: 0;
+}
+
+.no-dot--hidden {
+  visibility: hidden;
 }
 
 .no-user-chip {
@@ -219,6 +233,8 @@
   padding: 1.5rem 1.75rem 2rem;
   max-width: 1400px;
   margin: 0 auto;
+  min-width: 0;
+  width: 100%;
 }
 
 .no-page-bar {
@@ -253,6 +269,8 @@
   display: flex;
   align-items: center;
   gap: 1.35rem;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .no-search-field {
@@ -785,6 +803,9 @@
 
 .no-table-scroll {
   overflow-x: auto;
+  width: 100%;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
 }
 
 .no-table {
@@ -824,6 +845,10 @@
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
   text-transform: capitalize;
+  white-space: nowrap;
+  display: inline-block;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .no-tag--ok {
@@ -844,6 +869,164 @@
 .no-tag--off {
   background: #eef0f4;
   color: var(--no-muted);
+}
+
+.no-tag--attention {
+  background: #fff0e6;
+  color: #c45a00;
+}
+
+.no-stock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.no-stock-head {
+  align-items: flex-start;
+}
+
+.no-stock-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: var(--no-muted);
+  line-height: 1.4;
+  max-width: 36rem;
+}
+
+.no-stock-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  background: #f4f5f8;
+  border-radius: 999px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.no-stock-tabs button {
+  border: none;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--no-muted);
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.no-stock-tabs button:hover {
+  color: var(--no-navy);
+}
+
+.no-stock-tabs button.active {
+  background: var(--no-navy);
+  color: white;
+  box-shadow: 0 2px 8px rgba(26, 35, 64, 0.18);
+}
+
+.no-stock-tab-count {
+  font-size: 0.62rem;
+  font-weight: 700;
+  min-width: 1.1rem;
+  text-align: center;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.no-stock-tabs button.active .no-stock-tab-count {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.no-stock-table .no-stock-name {
+  font-weight: 600;
+  max-width: 14rem;
+}
+
+.no-stock-table th:last-child,
+.no-stock-table td:last-child {
+  width: 6.75rem;
+  white-space: nowrap;
+}
+
+.no-stock-status {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 5.75rem;
+}
+
+.no-stock-status .no-tag {
+  min-width: 5.25rem;
+}
+
+.no-stock-row--attention {
+  background: #fffaf5;
+}
+
+.no-stock-empty {
+  text-align: center;
+  color: var(--no-muted);
+  padding: 1.5rem 1rem !important;
+}
+
+.no-min-stock-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+  min-width: 7.25rem;
+}
+
+.no-min-stock-input {
+  width: 4rem;
+  border: 1px solid #e2e4ea;
+  border-radius: 0.45rem;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.4rem;
+  text-align: center;
+  background: white;
+}
+
+.no-min-stock-input:focus {
+  outline: none;
+  border-color: var(--no-navy);
+  box-shadow: 0 0 0 2px rgba(26, 35, 64, 0.12);
+}
+
+.no-min-stock-save {
+  border: none;
+  background: var(--no-navy);
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+
+.no-min-stock-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.no-min-stock-error {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 2px);
+  font-size: 0.65rem;
+  color: #c0392b;
+  white-space: nowrap;
+}
+
+.no-min-display {
+  font-weight: 700;
+  color: var(--no-navy);
 }
 
 .no-alert-title {
@@ -886,6 +1069,41 @@
   .no-dash-col--sales .no-metric-card {
     flex: 1;
   }
+
+  .no-page-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .no-page-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .no-header {
+    gap: 0.75rem;
+  }
+
+  .no-search-field {
+    flex: 1 1 12rem;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .no-page-toolbar {
+    width: 100%;
+  }
+
+  .no-stock-tabs {
+    width: 100%;
+    border-radius: 1rem;
+  }
+
+  .no-stock-tabs button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 768px) {
@@ -898,6 +1116,7 @@
   .no-header-start {
     grid-column: 1;
     grid-row: 1;
+    min-width: 0;
   }
 
   .no-header-user {
@@ -908,9 +1127,20 @@
   .no-header-nav {
     grid-column: 1 / -1;
     grid-row: 2;
-    justify-content: center;
+    justify-content: flex-start;
     overflow-x: auto;
+    flex-wrap: nowrap;
     padding-bottom: 0.25rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .no-header-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-header-nav button {
+    flex-shrink: 0;
   }
 
   .no-user-chip div {
@@ -927,5 +1157,71 @@
 
   .no-main {
     padding: 1rem;
+  }
+
+  .no-page-bar h1 {
+    font-size: 1.45rem;
+  }
+
+  .no-page-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .no-page-actions .no-btn {
+    justify-content: center;
+  }
+
+  .no-metric-card strong {
+    font-size: 1.65rem;
+  }
+
+  .no-week-bars {
+    height: 130px;
+  }
+
+  .no-week-bar-wrap {
+    height: 130px;
+  }
+}
+
+@media (max-width: 520px) {
+  .no-header-logo {
+    max-width: 5.5rem;
+    height: 2rem;
+  }
+
+  .no-header-nav button {
+    font-size: 0.78rem;
+    padding: 0.45rem 0.7rem;
+  }
+
+  .no-stock-tabs {
+    border-radius: 0.85rem;
+    padding: 0.35rem;
+  }
+
+  .no-stock-tabs button {
+    flex: 1 1 calc(50% - 0.35rem);
+    font-size: 0.68rem;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .no-table th,
+  .no-table td {
+    padding: 0.55rem 0.65rem;
+    font-size: 0.78rem;
+  }
+
+  .no-stock-table .no-stock-name {
+    max-width: 9rem;
+  }
+
+  .no-min-stock-input {
+    width: 3.25rem;
+  }
+
+  .no-search-field {
+    height: 2.35rem;
   }
 }

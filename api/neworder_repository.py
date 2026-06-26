@@ -982,3 +982,43 @@ def _parse_datetime(value: Any) -> datetime | None:
         return None
     local_dt = datetime.combine(parsed_date, datetime.min.time(), tzinfo=STORE_TZ)
     return local_dt.astimezone(timezone.utc)
+
+
+def set_product_min_stock(product_id: UUID, min_quantity: float | None) -> dict[str, Any]:
+    """Set or clear per-product minimum stock alert threshold (local config, not from API)."""
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select id from no_products where id = %s::uuid",
+                (str(product_id),),
+            )
+            if not cur.fetchone():
+                raise ValueError("Product not found.")
+
+            if min_quantity is None or min_quantity <= 0:
+                cur.execute(
+                    "delete from no_product_stock_thresholds where product_id = %s::uuid",
+                    (str(product_id),),
+                )
+                return {
+                    "product_id": str(product_id),
+                    "has_min_threshold": False,
+                    "min_stock": None,
+                }
+
+            qty = round(float(min_quantity), 2)
+            cur.execute(
+                """
+                insert into no_product_stock_thresholds (product_id, min_quantity)
+                values (%s::uuid, %s)
+                on conflict (product_id) do update set
+                  min_quantity = excluded.min_quantity,
+                  updated_at = now()
+                """,
+                (str(product_id), qty),
+            )
+            return {
+                "product_id": str(product_id),
+                "has_min_threshold": True,
+                "min_stock": qty,
+            }

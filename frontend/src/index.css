@@ -348,7 +348,7 @@
   }
 
   .main-canvas {
-    @apply relative min-w-0;
+    @apply relative min-w-0 w-full max-w-full overflow-x-clip;
   }
 
   html[data-bg-theme="layered-depth"] .main-canvas::before {
@@ -394,7 +394,7 @@
   }
 
   .app-header {
-    @apply relative z-40 border-b backdrop-blur-2xl transition-colors duration-500;
+    @apply relative z-40 min-w-0 overflow-x-clip border-b backdrop-blur-2xl transition-colors duration-500;
   }
 
   html[data-bg-theme="frosted-saas"] .app-header,
@@ -1110,6 +1110,34 @@
 
   .platform-card-soon {
     @apply mt-2 text-sm font-bold tracking-wide text-emerald-400/90;
+  }
+
+  @media (max-width: 639px) {
+    .brand-title {
+      @apply text-xl sm:text-2xl;
+    }
+
+    .app-header-inner {
+      @apply gap-3 px-3 py-3;
+    }
+
+    .app-header-actions {
+      @apply gap-1.5;
+    }
+
+    .main-tab-btn {
+      @apply px-2.5 py-2 text-xs;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .platform-hub-title {
+      @apply text-2xl;
+    }
+
+    .platform-card {
+      @apply px-4 py-6;
+    }
   }
 }
 

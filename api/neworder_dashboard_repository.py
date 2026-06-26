@@ -156,24 +156,30 @@ def _fetch_kpi(cur: Any, period_key: str, *, hours: int | None = None) -> dict[s
         "unique_customer_count": unique_customers,
         "orders_with_customer": int(row.get("orders_with_customer") or 0),
         "customer_volume_pct": customer_volume_pct,
-        "low_stock_count": _count_low_stock(cur),
+        "low_stock_count": _count_attention_needed(cur),
+        "attention_needed_count": _count_attention_needed(cur),
     }
 
 
-def _count_low_stock(cur: Any) -> int:
+def _count_attention_needed(cur: Any) -> int:
     cur.execute(
         """
-        select count(*)::integer as total
+        select count(distinct p.id)::integer as total
         from no_products p
+        join no_product_stock_thresholds t on t.product_id = p.id
         join no_product_stock ps on ps.product_id = p.id
-        left join no_product_stock_thresholds t on t.product_id = p.id
         where p.is_active = true
           and p.is_stock = true
-          and ps.quantity <= coalesce(nullif(t.min_quantity, 0), 5)
+          and t.min_quantity > 0
+          and ps.quantity <= t.min_quantity
         """
     )
     row = cur.fetchone()
     return int(row["total"]) if row else 0
+
+
+def _count_low_stock(cur: Any) -> int:
+    return _count_attention_needed(cur)
 
 
 def _period_sql_for(period_key: str, *, hours: int | None = None, alias: str = "d") -> str:
@@ -489,11 +495,14 @@ def _fetch_products(cur: Any, *, limit: int) -> list[dict[str, Any]]:
           coalesce(p.cost, 0)::numeric as cost,
           coalesce(p.price, 0)::numeric as price,
           coalesce(sum(ps.quantity), 0)::numeric as stock,
-          coalesce(max(t.min_quantity), 5)::numeric as min_stock,
-          p.is_active
+          max(t.min_quantity) filter (where t.min_quantity > 0) as min_stock,
+          (max(t.min_quantity) filter (where t.min_quantity > 0) is not null) as has_min_threshold,
+          p.is_active,
+          p.is_stock
         from no_products p
         left join no_product_stock ps on ps.product_id = p.id
         left join no_product_stock_thresholds t on t.product_id = p.id
+        where p.is_active = true
         group by p.id
         order by p.name
         limit %s
@@ -502,6 +511,8 @@ def _fetch_products(cur: Any, *, limit: int) -> list[dict[str, Any]]:
     )
     out: list[dict[str, Any]] = []
     for row in cur.fetchall():
+        min_raw = row.get("min_stock")
+        has_min = bool(row.get("has_min_threshold"))
         out.append(
             {
                 "id": str(row["id"]),
@@ -511,7 +522,9 @@ def _fetch_products(cur: Any, *, limit: int) -> list[dict[str, Any]]:
                 "cost": round(float(row["cost"] or 0), 2),
                 "price": round(float(row["price"] or 0), 2),
                 "stock": int(float(row["stock"] or 0)),
-                "min_stock": int(float(row["min_stock"] or 0)),
+                "min_stock": round(float(min_raw), 2) if has_min and min_raw is not None else None,
+                "has_min_threshold": has_min,
+                "is_stock": bool(row["is_stock"]),
                 "is_active": bool(row["is_active"]),
             }
         )
@@ -584,14 +597,14 @@ def _fetch_low_stock(cur: Any, *, limit: int) -> list[dict[str, Any]]:
           p.name,
           coalesce(nullif(p.barcode, ''), p.neworder_id) as sku,
           coalesce(sum(ps.quantity), 0)::numeric as stock,
-          coalesce(max(t.min_quantity), 5)::numeric as min_stock
+          max(t.min_quantity)::numeric as min_stock
         from no_products p
+        join no_product_stock_thresholds t on t.product_id = p.id and t.min_quantity > 0
         join no_product_stock ps on ps.product_id = p.id
-        left join no_product_stock_thresholds t on t.product_id = p.id
         where p.is_active = true
           and p.is_stock = true
         group by p.id
-        having coalesce(sum(ps.quantity), 0) <= coalesce(max(t.min_quantity), 5)
+        having coalesce(sum(ps.quantity), 0) <= max(t.min_quantity)
         order by coalesce(sum(ps.quantity), 0), p.name
         limit %s
         """,
@@ -603,7 +616,8 @@ def _fetch_low_stock(cur: Any, *, limit: int) -> list[dict[str, Any]]:
             "name": row["name"],
             "sku": row["sku"],
             "stock": int(float(row["stock"] or 0)),
-            "min_stock": int(float(row["min_stock"] or 0)),
+            "min_stock": round(float(row["min_stock"] or 0), 2),
+            "has_min_threshold": True,
         }
         for row in cur.fetchall()
     ]

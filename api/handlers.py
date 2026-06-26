@@ -28,6 +28,7 @@ from db_repository import (
 from analytics_service import get_overall_analytics, get_period_analytics, parse_limit
 from neworder_sync_service import get_sync_status, run_neworder_sync, run_neworder_sync_step
 from neworder_dashboard_repository import fetch_dashboard_data
+from neworder_repository import set_product_min_stock
 from supabase_client import is_db_configured
 
 CORS_HEADERS = (
@@ -407,3 +408,45 @@ def handle_neworder_sync_post(handler: BaseHTTPRequestHandler) -> None:
         send_json(handler, 400, {"error": str(exc)})
     except Exception as exc:
         send_json(handler, 500, {"error": f"NewOrder sync failed: {exc}"})
+
+
+def handle_neworder_product_min_stock_patch(
+    handler: BaseHTTPRequestHandler,
+    product_id: str,
+) -> None:
+    if not is_request_authenticated(handler.headers.get("Authorization")):
+        send_json(handler, 401, {"error": "Unauthorized. Please sign in again."})
+        return
+
+    try:
+        parsed_id = UUID(product_id.strip())
+    except ValueError:
+        send_json(handler, 400, {"error": "product_id must be a valid UUID."})
+        return
+
+    try:
+        content_length = int(handler.headers.get("Content-Length", "0"))
+        raw_body = handler.rfile.read(content_length) if content_length else b"{}"
+        body = json.loads(raw_body.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        send_json(handler, 400, {"error": "Request body must be valid JSON."})
+        return
+
+    min_raw = body.get("min_quantity")
+    min_quantity: float | None
+    if min_raw is None or min_raw == "":
+        min_quantity = None
+    else:
+        try:
+            min_quantity = float(min_raw)
+        except (TypeError, ValueError):
+            send_json(handler, 400, {"error": "min_quantity must be a number."})
+            return
+
+    try:
+        result = set_product_min_stock(parsed_id, min_quantity)
+        send_json(handler, 200, result)
+    except ValueError as exc:
+        send_json(handler, 404, {"error": str(exc)})
+    except Exception as exc:
+        send_json(handler, 500, {"error": f"Failed to update min stock: {exc}"})

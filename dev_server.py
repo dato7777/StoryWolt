@@ -59,6 +59,12 @@ class DevHandler(BaseHTTPRequestHandler):
             handlers.handle_neworder_status_get(self)
         elif path == "/api/neworder/dashboard":
             handlers.handle_neworder_dashboard_get(self)
+        elif path.startswith("/api/neworder/products/") and path.endswith("/min-stock"):
+            product_id = path.removeprefix("/api/neworder/products/").removesuffix("/min-stock").strip("/")
+            if product_id:
+                handlers.handle_neworder_product_min_stock_patch(self, product_id)
+            else:
+                handlers.send_json(self, 404, {"error": "Product id required"})
         elif path.startswith("/api/timelines/"):
             timeline_id = path.removeprefix("/api/timelines/").strip("/")
             if timeline_id:
@@ -76,6 +82,17 @@ class DevHandler(BaseHTTPRequestHandler):
             handlers.handle_calculate_post(self)
         elif path == "/api/neworder/sync":
             handlers.handle_neworder_sync_post(self)
+        else:
+            handlers.send_json(self, 404, {"error": f"Not found: {path}"})
+
+    def do_PATCH(self) -> None:
+        path = self._path()
+        if path.startswith("/api/neworder/products/") and path.endswith("/min-stock"):
+            product_id = path.removeprefix("/api/neworder/products/").removesuffix("/min-stock").strip("/")
+            if product_id:
+                handlers.handle_neworder_product_min_stock_patch(self, product_id)
+            else:
+                handlers.send_json(self, 404, {"error": "Product id required"})
         else:
             handlers.send_json(self, 404, {"error": f"Not found: {path}"})
 
