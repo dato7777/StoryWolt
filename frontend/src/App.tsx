@@ -22,11 +22,12 @@ import { getAuthUsername, hasAuthSession } from "./auth/session";
 import { useI18n } from "./i18n/LanguageContext";
 import { WelcomeSplash } from "./components/WelcomeSplash";
 import { PlatformHubPage } from "./components/PlatformHubPage";
+import { NewOrderDashboard } from "./components/neworder/NewOrderDashboard";
 import { formatReportPeriod, formatTimelinePeriod } from "./utils/formatReportPeriod";
 import type { CalculationResponse, CalculationSummary, ReportTimeline, UploadFiles } from "./types";
 
 type TabId = "orders" | "products" | "losses";
-type AuthState = "checking" | "guest" | "welcoming" | "platform-hub" | "authenticated";
+type AuthState = "checking" | "guest" | "welcoming" | "platform-hub" | "authenticated" | "neworder";
 
 function parseViewFromUrl(): AppView {
   const param = new URLSearchParams(window.location.search).get("view");
@@ -466,7 +467,21 @@ export default function App() {
   }
 
   if (authState === "platform-hub") {
-    return <PlatformHubPage onSelectWolt={() => setAuthState("authenticated")} />;
+    return (
+      <PlatformHubPage
+        onSelectWolt={() => setAuthState("authenticated")}
+        onSelectNewOrder={() => setAuthState("neworder")}
+      />
+    );
+  }
+
+  if (authState === "neworder") {
+    return (
+      <NewOrderDashboard
+        adminName={getAuthUsername() ?? "admin"}
+        onBackToHub={() => setAuthState("platform-hub")}
+      />
+    );
   }
 
   const adminName = getAuthUsername() ?? "admin";
@@ -558,6 +573,7 @@ export default function App() {
         reportPeriodLabel={reportPeriodLabel}
         hasReport={Boolean(result)}
         databaseConfigured={databaseConfigured}
+        onBackToPlatforms={() => setAuthState("platform-hub")}
       />
 
       <main

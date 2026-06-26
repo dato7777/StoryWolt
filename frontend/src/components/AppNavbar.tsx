@@ -1,4 +1,5 @@
 import { useI18n } from "../i18n/LanguageContext";
+import { ChoosePlatformButton } from "./ChoosePlatformButton";
 
 export type AppView = "reports" | "uploads" | "report" | "analytics";
 
@@ -10,6 +11,7 @@ interface AppNavbarProps {
   reportPeriodLabel: string | null;
   hasReport: boolean;
   databaseConfigured: boolean;
+  onBackToPlatforms: () => void;
 }
 
 export function AppNavbar({
@@ -18,6 +20,7 @@ export function AppNavbar({
   reportPeriodLabel,
   hasReport,
   databaseConfigured,
+  onBackToPlatforms,
 }: AppNavbarProps) {
   const { t } = useI18n();
 
@@ -52,6 +55,10 @@ export function AppNavbar({
     <nav className="app-navbar" aria-label={t("nav.ariaLabel")}>
       <div className="app-navbar-glow" aria-hidden />
       <div className="app-navbar-inner">
+        <div className="app-navbar-start">
+          <ChoosePlatformButton onClick={onBackToPlatforms} />
+        </div>
+
         <div className="app-navbar-scroll">
           <div className="app-navbar-track">
             {visibleItems.map((item) => {
@@ -83,12 +90,12 @@ export function AppNavbar({
           </div>
         </div>
 
-        <div className="app-navbar-external-row">
+        <div className="app-navbar-end">
           <a
             href={STORYPHONE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="app-navbar-external app-navbar-external--mobile"
+            className="app-navbar-external"
           >
             <span className="app-navbar-external-icon" aria-hidden>
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

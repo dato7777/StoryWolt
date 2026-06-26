@@ -6,9 +6,10 @@ const NEWORDER_LOGO = "/logos/neworder.png";
 
 interface PlatformHubPageProps {
   onSelectWolt: () => void;
+  onSelectNewOrder: () => void;
 }
 
-export function PlatformHubPage({ onSelectWolt }: PlatformHubPageProps) {
+export function PlatformHubPage({ onSelectWolt, onSelectNewOrder }: PlatformHubPageProps) {
   const { t } = useI18n();
 
   return (
@@ -46,8 +47,13 @@ export function PlatformHubPage({ onSelectWolt }: PlatformHubPageProps) {
             <span className="platform-card-hint">{t("platformHub.woltHint")}</span>
           </button>
 
-          <div className="platform-card platform-card--soon" aria-disabled="true">
-            <span className="platform-card-logo-wrap platform-card-logo-wrap--muted">
+          <button
+            type="button"
+            onClick={onSelectNewOrder}
+            className="platform-card platform-card--active platform-card--neworder group"
+          >
+            <span className="platform-card-ring" aria-hidden />
+            <span className="platform-card-logo-wrap platform-card-logo-wrap--neworder">
               <img
                 src={NEWORDER_LOGO}
                 alt="NewOrder"
@@ -55,9 +61,9 @@ export function PlatformHubPage({ onSelectWolt }: PlatformHubPageProps) {
                 draggable={false}
               />
             </span>
-            <span className="platform-card-label platform-card-label--muted">NewOrder</span>
-            <span className="platform-card-soon">{t("platformHub.soon")}</span>
-          </div>
+            <span className="platform-card-label">NewOrder</span>
+            <span className="platform-card-hint">{t("platformHub.neworderHint")}</span>
+          </button>
         </div>
       </main>
     </div>

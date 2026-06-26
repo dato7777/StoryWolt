@@ -47,6 +47,8 @@ const en = {
     analytics: "Product analytics",
     analyticsShort: "Analytics",
     toStoryPhone: "To StoryPhone",
+    backToPlatforms: "Choose Platform",
+    backToPlatformsShort: "Platforms",
   },
   backgroundTheme: {
     label: "Page background",
@@ -79,6 +81,7 @@ const en = {
     subtitle: "Select a service to open its dashboard.",
     wolt: "Wolt",
     woltHint: "Open net income dashboard",
+    neworderHint: "Open store dashboard",
     soon: "Soon..",
   },
   app: {
@@ -390,6 +393,8 @@ const he: DeepStringRecord<typeof en> = {
     analytics: "אנליטיקת מוצרים",
     analyticsShort: "אנליטיקה",
     toStoryPhone: "לסטורי פון",
+    backToPlatforms: "בחירת פלטפורמה",
+    backToPlatformsShort: "פלטפורמות",
   },
   backgroundTheme: {
     label: "רקע העמוד",
@@ -422,6 +427,7 @@ const he: DeepStringRecord<typeof en> = {
     subtitle: "בחר שירות כדי לפתוח את לוח הבקרה שלו.",
     wolt: "Wolt",
     woltHint: "פתח לוח הכנסה נטו",
+    neworderHint: "פתח לוח חנות",
     soon: "בקרוב..",
   },
   app: {
