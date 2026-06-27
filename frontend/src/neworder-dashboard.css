@@ -246,6 +246,7 @@
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.35rem;
+  overflow: visible;
 }
 
 .no-page-bar h1 {
@@ -273,6 +274,7 @@
   gap: 1.35rem;
   flex-wrap: wrap;
   min-width: 0;
+  overflow: visible;
 }
 
 .no-search-field {
@@ -593,6 +595,158 @@
 .no-chart-tabs button.active {
   background: var(--no-navy);
   color: white;
+}
+
+.no-period-selector {
+  position: relative;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.no-period-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.no-period-presets button {
+  border: none;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--no-muted);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.no-period-presets button svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+}
+
+.no-period-presets button:hover:not(:disabled) {
+  color: var(--no-navy);
+  background: rgba(26, 28, 61, 0.06);
+}
+
+.no-period-presets button.active {
+  background: var(--no-navy);
+  color: white;
+  box-shadow: 0 2px 10px rgba(26, 35, 64, 0.2);
+}
+
+.no-period-presets button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.no-date-range-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: min(20rem, calc(100vw - 2.5rem));
+  padding: 0.65rem 0.75rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8f9fc 100%);
+  border: 1px solid #e2e4ea;
+  box-shadow:
+    0 12px 32px rgba(26, 28, 61, 0.14),
+    0 2px 8px rgba(26, 28, 61, 0.06);
+}
+
+.no-date-range-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.no-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1 1 8.5rem;
+  min-width: 0;
+}
+
+.no-date-field span {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--no-muted);
+}
+
+.no-date-field input {
+  border: 1px solid #e2e4ea;
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--no-ink);
+  background: white;
+  min-width: 0;
+  width: 100%;
+}
+
+.no-date-field input:focus {
+  outline: none;
+  border-color: var(--no-navy);
+  box-shadow: 0 0 0 3px rgba(26, 35, 64, 0.1);
+}
+
+.no-date-range-arrow {
+  color: var(--no-muted);
+  font-size: 0.9rem;
+  padding-bottom: 0.55rem;
+  flex-shrink: 0;
+}
+
+.no-date-range-apply {
+  align-self: flex-start;
+  border: none;
+  background: var(--no-lime);
+  color: var(--no-navy);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.no-date-range-apply:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(193, 255, 77, 0.45);
+}
+
+.no-date-range-apply:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.no-date-range-error {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #c0392b;
+}
+
+.no-date-range-hint {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--no-muted);
 }
 
 .no-mini-select {
@@ -1294,6 +1448,7 @@
     background: linear-gradient(180deg, #fafbfc 0%, #f4f5f8 100%);
     border: 1px solid #e8eaef;
     box-shadow: 0 1px 2px rgba(26, 28, 61, 0.04);
+    overflow: visible;
   }
 
   .no-search-field {
@@ -1333,6 +1488,34 @@
     border-radius: 999px;
     background: #ffffff;
     border: 1px solid #e8eaef;
+  }
+
+  .no-period-selector {
+    width: 100%;
+  }
+
+  .no-period-presets {
+    width: 100%;
+  }
+
+  .no-date-range-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+
+  .no-date-range-fields {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .no-date-range-arrow {
+    display: none;
+  }
+
+  .no-date-range-apply {
+    align-self: stretch;
+    text-align: center;
   }
 
   .no-time-tabs button {

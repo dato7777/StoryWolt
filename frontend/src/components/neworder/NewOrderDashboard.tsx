@@ -4,7 +4,6 @@ import {
   fetchNewOrderDashboard,
   fetchNewOrderStatus,
   type NewOrderDashboardData,
-  type NewOrderDashboardPeriod,
   type NewOrderLastSync,
 } from "../../api/client";
 import {
@@ -18,18 +17,17 @@ import { formatIls, NAV_ITEMS, type NewOrderView } from "../../data/neworderMock
 import { CountUpCurrency } from "../CountUpCurrency";
 import { CountUpNumber } from "./CountUpNumber";
 import { StockView } from "./StockView";
+import {
+  PeriodSelector,
+  periodSelectionLabel,
+  type PeriodSelection,
+} from "./PeriodSelector";
 
 const NEWORDER_LOGO = "/logos/neworder.png";
 const SYNC_HOURS = 24;
 const KPI_COUNT_DURATION_MS = 900;
 const KPI_COUNT_PAUSE_MS = 140;
 const TACHOMETER_DURATION_MS = 1200;
-
-const PERIOD_TABS: { id: NewOrderDashboardPeriod; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "yesterday", label: "Yesterday" },
-  { id: "week", label: "Last week" },
-];
 
 const SEARCH_PLACEHOLDERS: Record<NewOrderView, string> = {
   dashboard: "Search best sellers…",
@@ -152,27 +150,15 @@ interface NewOrderDashboardProps {
   onBackToHub: () => void;
 }
 
-function PeriodTimeTabs({
-  active,
-  onChange,
-}: {
-  active: NewOrderDashboardPeriod;
-  onChange: (period: NewOrderDashboardPeriod) => void;
-}) {
-  return (
-    <div className="no-time-tabs">
-      {PERIOD_TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          className={active === tab.id ? "active" : ""}
-          onClick={() => onChange(tab.id)}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
+function fetchOptionsForPeriod(selection: PeriodSelection) {
+  switch (selection.mode) {
+    case "today":
+      return { period: "today" as const };
+    case "yesterday":
+      return { period: "yesterday" as const };
+    case "range":
+      return { dateFrom: selection.from, dateTo: selection.to };
+  }
 }
 
 function DashboardSearchField({
@@ -880,7 +866,7 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
   const [dashboard, setDashboard] = useState<NewOrderDashboardData>(EMPTY_DASHBOARD);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<NewOrderDashboardPeriod>("today");
+  const [periodSelection, setPeriodSelection] = useState<PeriodSelection>({ mode: "today" });
   const [searchQuery, setSearchQuery] = useState("");
   const fetchGenerationRef = useRef(0);
   const meta = VIEW_META[view];
@@ -912,14 +898,15 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
     });
   }, []);
 
-  const loadDashboard = useCallback(async (activePeriod: NewOrderDashboardPeriod) => {
+  const loadDashboard = useCallback(async (selection: PeriodSelection) => {
     const fetchId = ++fetchGenerationRef.current;
-    const activeLabel = PERIOD_TABS.find((t) => t.id === activePeriod)?.label ?? "Today";
+    const activeLabel = periodSelectionLabel(selection);
+    const periodKey = selection.mode === "range" ? "range" : selection.mode;
     setDashboardLoading(true);
     setDashboardError(null);
     setDashboard((prev) => ({
       ...prev,
-      period: activePeriod,
+      period: periodKey,
       period_label: activeLabel,
       kpi: { ...EMPTY_DASHBOARD.kpi },
       daily_sales: [],
@@ -929,7 +916,7 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
       employees: [],
     }));
     try {
-      const data = await fetchNewOrderDashboard({ period: activePeriod });
+      const data = await fetchNewOrderDashboard(fetchOptionsForPeriod(selection));
       if (fetchId !== fetchGenerationRef.current) {
         return;
       }
@@ -946,8 +933,8 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
     }
   }, []);
 
-  const handlePeriodChange = useCallback((next: NewOrderDashboardPeriod) => {
-    setPeriod(next);
+  const handlePeriodChange = useCallback((next: PeriodSelection) => {
+    setPeriodSelection(next);
   }, []);
 
   const refreshStatus = useCallback(async () => {
@@ -965,8 +952,8 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
 
   const finishSyncRun = useCallback(async () => {
     await refreshStatus();
-    await loadDashboard(period);
-  }, [loadDashboard, period, refreshStatus]);
+    await loadDashboard(periodSelection);
+  }, [loadDashboard, periodSelection, refreshStatus]);
 
   const wasSyncingRef = useRef(getNewOrderSyncUIState().syncing);
 
@@ -1004,8 +991,8 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
   }, [refreshStatus]);
 
   useEffect(() => {
-    void loadDashboard(period);
-  }, [period, loadDashboard]);
+    void loadDashboard(periodSelection);
+  }, [periodSelection, loadDashboard]);
 
   useEffect(() => {
     setSearchQuery("");
@@ -1080,7 +1067,11 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
                 onChange={setSearchQuery}
                 placeholder={SEARCH_PLACEHOLDERS[view]}
               />
-              <PeriodTimeTabs active={period} onChange={handlePeriodChange} />
+              <PeriodSelector
+                value={periodSelection}
+                onChange={handlePeriodChange}
+                disabled={dashboardLoading}
+              />
             </div>
             <button type="button" className="no-btn no-btn--ghost">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12M12 15l4-4M12 15l-4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
@@ -1105,7 +1096,7 @@ export function NewOrderDashboard({ adminName, onBackToHub }: NewOrderDashboardP
         {syncError && <p className="no-sync-error">{syncError}</p>}
         {dashboardError && <p className="no-sync-error">{dashboardError}</p>}
         {dashboardLoading && (
-          <p className="no-muted-sm">Updating {PERIOD_TABS.find((t) => t.id === period)?.label ?? "period"}…</p>
+          <p className="no-muted-sm">Updating {periodSelectionLabel(periodSelection)}…</p>
         )}
         {renderView(view, filteredDashboard, handleMinStockUpdated)}
       </main>

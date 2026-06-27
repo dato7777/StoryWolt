@@ -9,9 +9,42 @@ from zoneinfo import ZoneInfo
 from supabase_client import db_connection
 
 STORE_TZ = ZoneInfo("Asia/Jerusalem")
-VALID_PERIODS = frozenset({"today", "yesterday", "week"})
+VALID_PERIODS = frozenset({"today", "yesterday", "range"})
+MAX_RANGE_DAYS = 366
 ORDERS_LIST_LIMIT = 5000
 PRODUCTS_LIST_LIMIT = 10000
+
+
+def parse_iso_date(value: str) -> date:
+    """Parse YYYY-MM-DD in store calendar."""
+    text = (value or "").strip()
+    if len(text) != 10:
+        raise ValueError("Dates must use YYYY-MM-DD format.")
+    parsed = date.fromisoformat(text)
+    return parsed
+
+
+def resolve_date_range(date_from: date, date_to: date) -> tuple[date, date, str]:
+    if date_to < date_from:
+        raise ValueError("End date must be on or after start date.")
+    span = (date_to - date_from).days + 1
+    if span > MAX_RANGE_DAYS:
+        raise ValueError(f"Date range cannot exceed {MAX_RANGE_DAYS} days.")
+    return date_from, date_to, _format_range_label(date_from, date_to)
+
+
+def _format_range_label(start: date, end: date) -> str:
+    def day_num(d: date) -> str:
+        return str(d.day)
+
+    if start == end:
+        return f"{day_num(start)} {start.strftime('%b %Y')}"
+    same_year = start.year == end.year
+    if same_year and start.month == end.month:
+        return f"{day_num(start)}–{day_num(end)} {start.strftime('%b %Y')}"
+    if same_year:
+        return f"{day_num(start)} {start.strftime('%b')} – {day_num(end)} {end.strftime('%b %Y')}"
+    return f"{day_num(start)} {start.strftime('%b %Y')} – {day_num(end)} {end.strftime('%b %Y')}"
 
 
 def resolve_period(period: str) -> tuple[str, str, date | None, date | None]:
@@ -27,11 +60,17 @@ def resolve_period(period: str) -> tuple[str, str, date | None, date | None]:
     if key == "yesterday":
         day = today - timedelta(days=1)
         return key, "Yesterday", day, day
-    week_start = today - timedelta(days=6)
-    return key, "Last week", week_start, today
+    return key, "Custom range", None, None
 
 
-def _document_period_sql(period_key: str, *, alias: str = "d", hours: int | None = None) -> str:
+def _document_period_sql(
+    period_key: str,
+    *,
+    alias: str = "d",
+    hours: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> str:
     """Filter documents by store calendar dates (evaluated in PostgreSQL)."""
     col = f"({alias}.create_date at time zone 'Asia/Jerusalem')::date"
     jerusalem_today = "(now() at time zone 'Asia/Jerusalem')::date"
@@ -43,12 +82,18 @@ def _document_period_sql(period_key: str, *, alias: str = "d", hours: int | None
         return f"{col} = {jerusalem_today}"
     if period_key == "yesterday":
         return f"{col} = {jerusalem_today} - 1"
-    if period_key == "week":
-        return f"{col} >= {jerusalem_today} - 6"
+    if period_key == "range" and start_date is not None and end_date is not None:
+        return f"{col} >= '{start_date.isoformat()}' and {col} <= '{end_date.isoformat()}'"
     return f"{col} = {jerusalem_today}"
 
 
-def fetch_dashboard_data(*, period: str = "today", hours: int | None = None) -> dict[str, Any]:
+def fetch_dashboard_data(
+    *,
+    period: str = "today",
+    hours: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> dict[str, Any]:
     if hours is not None:
         hours = max(1, min(int(hours), 24 * 366))
         period_key = "hours"
@@ -59,21 +104,31 @@ def fetch_dashboard_data(*, period: str = "today", hours: int | None = None) -> 
         until_ts = None
     else:
         period_key, period_label, start_date, end_date = resolve_period(period)
+        if period_key == "range":
+            if date_from is None or date_to is None:
+                raise ValueError("from and to dates are required for a custom range.")
+            start_date, end_date, period_label = resolve_date_range(date_from, date_to)
         since_ts, until_ts = _period_bounds_utc(start_date, end_date)
+
+    range_kwargs = {"start_date": start_date, "end_date": end_date}
 
     with db_connection() as conn:
         with conn.cursor() as cur:
-            kpi = _fetch_kpi(cur, period_key, hours=hours)
-            chart = _fetch_chart_series(cur, period_key, hours=hours)
+            kpi = _fetch_kpi(cur, period_key, hours=hours, **range_kwargs)
+            chart = _fetch_chart_series(cur, period_key, hours=hours, **range_kwargs)
             daily_sales = chart["points"]
-            top_products = _fetch_top_products(cur, period_key, hours=hours, limit=5)
-            best_net = _fetch_best_net_revenue(cur, period_key, hours=hours, limit=10)
+            top_products = _fetch_top_products(
+                cur, period_key, hours=hours, limit=5, **range_kwargs
+            )
+            best_net = _fetch_best_net_revenue(
+                cur, period_key, hours=hours, limit=10, **range_kwargs
+            )
             orders = _fetch_recent_orders(
-                cur, period_key, hours=hours, limit=ORDERS_LIST_LIMIT
+                cur, period_key, hours=hours, limit=ORDERS_LIST_LIMIT, **range_kwargs
             )
             products = _fetch_products(cur, limit=PRODUCTS_LIST_LIMIT)
             products_total = _count_products(cur)
-            employees = _fetch_employee_sales(cur, period_key, hours=hours)
+            employees = _fetch_employee_sales(cur, period_key, hours=hours, **range_kwargs)
             low_stock = _fetch_low_stock(cur, limit=20)
 
     return {
@@ -105,8 +160,17 @@ def _period_bounds_utc(start: date | None, end: date | None) -> tuple[datetime, 
     return start_local.astimezone(timezone.utc), end_exclusive.astimezone(timezone.utc)
 
 
-def _fetch_kpi(cur: Any, period_key: str, *, hours: int | None = None) -> dict[str, Any]:
-    period_sql = _period_sql_for(period_key, hours=hours)
+def _fetch_kpi(
+    cur: Any,
+    period_key: str,
+    *,
+    hours: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict[str, Any]:
+    period_sql = _period_sql_for(
+        period_key, hours=hours, start_date=start_date, end_date=end_date
+    )
     cur.execute(
         f"""
         with docs as (
@@ -182,13 +246,32 @@ def _count_low_stock(cur: Any) -> int:
     return _count_attention_needed(cur)
 
 
-def _period_sql_for(period_key: str, *, hours: int | None = None, alias: str = "d") -> str:
+def _period_sql_for(
+    period_key: str,
+    *,
+    hours: int | None = None,
+    alias: str = "d",
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> str:
     if period_key == "hours":
         return _document_period_sql("hours", alias=alias, hours=hours)
-    return _document_period_sql(period_key, alias=alias)
+    return _document_period_sql(
+        period_key,
+        alias=alias,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
-def _attendance_period_sql(period_key: str, *, alias: str = "a", hours: int | None = None) -> str:
+def _attendance_period_sql(
+    period_key: str,
+    *,
+    alias: str = "a",
+    hours: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> str:
     """Filter attendance rows by shift enter_date (store calendar) or rolling hours."""
     date_col = f"{alias}.enter_date"
     jerusalem_today = "(now() at time zone 'Asia/Jerusalem')::date"
@@ -206,8 +289,11 @@ def _attendance_period_sql(period_key: str, *, alias: str = "a", hours: int | No
         return f"{date_col} = {jerusalem_today}"
     if period_key == "yesterday":
         return f"{date_col} = {jerusalem_today} - 1"
-    if period_key == "week":
-        return f"{date_col} >= {jerusalem_today} - 6 and {date_col} <= {jerusalem_today}"
+    if period_key == "range" and start_date is not None and end_date is not None:
+        return (
+            f"{date_col} >= '{start_date.isoformat()}' "
+            f"and {date_col} <= '{end_date.isoformat()}'"
+        )
     return f"{date_col} = {jerusalem_today}"
 
 
@@ -216,10 +302,21 @@ def _fetch_chart_series(
     period_key: str,
     *,
     hours: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> dict[str, Any]:
-    period_sql = _period_sql_for(period_key, hours=hours)
+    period_sql = _period_sql_for(
+        period_key, hours=hours, start_date=start_date, end_date=end_date
+    )
 
-    if period_key in {"today", "yesterday", "hours"}:
+    use_hour_buckets = period_key in {"today", "yesterday", "hours"} or (
+        period_key == "range"
+        and start_date is not None
+        and end_date is not None
+        and start_date == end_date
+    )
+
+    if use_hour_buckets:
         cur.execute(
             f"""
             select
@@ -266,13 +363,25 @@ def _fetch_chart_series(
     now_local = datetime.now(STORE_TZ)
     today = now_local.date()
 
-    if period_key in {"today", "yesterday", "hours"}:
-        if period_key == "yesterday":
-            anchor = today - timedelta(days=1)
+    if use_hour_buckets:
+        if period_key == "yesterday" or (
+            period_key == "range" and start_date is not None and start_date < today
+        ):
+            anchor = (
+                today - timedelta(days=1)
+                if period_key == "yesterday"
+                else start_date
+            )
             hour_range = range(0, 24)
         elif period_key == "hours" and hours is not None:
             anchor = today
             hour_range = range(max(0, now_local.hour - hours + 1), now_local.hour + 1)
+        elif period_key == "range" and start_date == today:
+            anchor = today
+            hour_range = range(0, now_local.hour + 1)
+        elif period_key == "range" and start_date is not None:
+            anchor = start_date
+            hour_range = range(0, 24)
         else:
             anchor = today
             hour_range = range(0, now_local.hour + 1)
@@ -295,8 +404,11 @@ def _fetch_chart_series(
         granularity = "hour"
     else:
         slots = []
-        for offset in range(7):
-            day = today - timedelta(days=6 - offset)
+        range_start = start_date if period_key == "range" and start_date else today - timedelta(days=6)
+        range_end = end_date if period_key == "range" and end_date else today
+        span_days = (range_end - range_start).days
+        for offset in range(span_days + 1):
+            day = range_start + timedelta(days=offset)
             revenue = revenue_by_day.get(day, 0.0)
             orders = orders_by_day.get(day, 0)
             bucket_dt = datetime.combine(day, time.min, tzinfo=STORE_TZ)
@@ -341,8 +453,12 @@ def _fetch_top_products(
     *,
     hours: int | None = None,
     limit: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    period_sql = _period_sql_for(period_key, hours=hours)
+    period_sql = _period_sql_for(
+        period_key, hours=hours, start_date=start_date, end_date=end_date
+    )
 
     cur.execute(
         f"""
@@ -381,8 +497,12 @@ def _fetch_best_net_revenue(
     *,
     hours: int | None = None,
     limit: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    period_sql = _period_sql_for(period_key, hours=hours)
+    period_sql = _period_sql_for(
+        period_key, hours=hours, start_date=start_date, end_date=end_date
+    )
 
     cur.execute(
         f"""
@@ -424,8 +544,12 @@ def _fetch_recent_orders(
     *,
     hours: int | None = None,
     limit: int,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    period_sql = _period_sql_for(period_key, hours=hours)
+    period_sql = _period_sql_for(
+        period_key, hours=hours, start_date=start_date, end_date=end_date
+    )
 
     cur.execute(
         f"""
@@ -536,8 +660,12 @@ def _fetch_employee_sales(
     period_key: str,
     *,
     hours: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    period_sql = _period_sql_for(period_key, hours=hours)
+    period_sql = _period_sql_for(
+        period_key, hours=hours, start_date=start_date, end_date=end_date
+    )
 
     cur.execute(
         f"""
@@ -553,7 +681,12 @@ def _fetch_employee_sales(
     )
     sales_rows = {str(r["name"]): dict(r) for r in cur.fetchall()}
 
-    attendance_period_sql = _attendance_period_sql(period_key, hours=hours)
+    attendance_period_sql = _attendance_period_sql(
+        period_key,
+        hours=hours,
+        start_date=start_date,
+        end_date=end_date,
+    )
     cur.execute(
         f"""
         select

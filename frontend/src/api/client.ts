@@ -443,7 +443,7 @@ export async function syncNewOrder(options?: {
   return body as unknown as NewOrderSyncResult;
 }
 
-export type NewOrderDashboardPeriod = "today" | "yesterday" | "week";
+export type NewOrderDashboardPeriod = "today" | "yesterday" | "range";
 
 export interface NewOrderDashboardKpi {
   total_sales: number;
@@ -572,10 +572,15 @@ export async function updateProductMinStock(
 export async function fetchNewOrderDashboard(options?: {
   period?: NewOrderDashboardPeriod;
   hours?: number;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<NewOrderDashboardData> {
   const params = new URLSearchParams();
   if (options?.hours != null) {
     params.set("hours", String(options.hours));
+  } else if (options?.dateFrom && options?.dateTo) {
+    params.set("from", options.dateFrom);
+    params.set("to", options.dateTo);
   } else {
     params.set("period", options?.period ?? "today");
   }

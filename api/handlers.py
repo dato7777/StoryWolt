@@ -27,7 +27,7 @@ from db_repository import (
 )
 from analytics_service import get_overall_analytics, get_period_analytics, parse_limit
 from neworder_sync_service import get_sync_status, run_neworder_sync, run_neworder_sync_step
-from neworder_dashboard_repository import fetch_dashboard_data
+from neworder_dashboard_repository import fetch_dashboard_data, parse_iso_date
 from neworder_repository import set_product_min_stock
 from supabase_client import is_db_configured
 
@@ -322,18 +322,31 @@ def handle_neworder_dashboard_get(handler: BaseHTTPRequestHandler) -> None:
     params = _query_params(handler)
     period = params.get("period", "today").strip().lower()
     hours_raw = params.get("hours")
+    date_from_raw = params.get("from") or params.get("date_from")
+    date_to_raw = params.get("to") or params.get("date_to")
 
     try:
         if hours_raw is not None and hours_raw != "":
             hours = int(hours_raw)
             payload = fetch_dashboard_data(hours=hours)
+        elif date_from_raw and date_to_raw:
+            date_from = parse_iso_date(date_from_raw)
+            date_to = parse_iso_date(date_to_raw)
+            payload = fetch_dashboard_data(period="range", date_from=date_from, date_to=date_to)
         else:
-            if period not in {"today", "yesterday", "week"}:
-                send_json(handler, 400, {"error": "period must be today, yesterday, or week."})
+            if period not in {"today", "yesterday", "range"}:
+                send_json(
+                    handler,
+                    400,
+                    {"error": "period must be today, yesterday, or range (with from & to dates)."},
+                )
+                return
+            if period == "range":
+                send_json(handler, 400, {"error": "from and to dates are required for range."})
                 return
             payload = fetch_dashboard_data(period=period)
-    except (TypeError, ValueError):
-        send_json(handler, 400, {"error": "hours must be an integer when provided."})
+    except ValueError as exc:
+        send_json(handler, 400, {"error": str(exc)})
         return
 
     try:
